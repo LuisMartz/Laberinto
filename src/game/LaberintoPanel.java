@@ -38,7 +38,11 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     private MazeState mazeState;
     private MazeController mazeController;
     private MazeRenderer mazeRenderer;
+    private InventoryMenuRenderer inventoryMenuRenderer;
+    private SkillTreeMenuRenderer skillTreeMenuRenderer;
+    private SkillTreeProgression skillTreeProgression;
     private CombatEnemy pendingCombatEnemy;
+    private String menuMessage = "";
     private boolean isFightingGameStarted = false;
     private boolean inCombat = false;
     private boolean menuOpen = false;
@@ -128,6 +132,9 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         playerData = new PlayerData();
         mazeState = new MazeState();
         mazeRenderer = new MazeRenderer();
+        inventoryMenuRenderer = new InventoryMenuRenderer();
+        skillTreeMenuRenderer = new SkillTreeMenuRenderer();
+        skillTreeProgression = new SkillTreeProgression();
         mazeController = new MazeController(mazeState, new MazeController.Listener() {
             @Override
             public void onCombatRequested(CombatEnemy enemy) {
@@ -344,7 +351,9 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         removeKeyListener(this);
         
         try (FileOutputStream output = new FileOutputStream(fileName)) {
-            mazeState.toProperties().store(output, "Laberinto save");
+            Properties properties = mazeState.toProperties();
+            skillTreeProgression.save(properties);
+            properties.store(output, "Laberinto save");
 /*
             // Guardar posicion del jugado, puntuacion y la generación del enemigo
             writer.write(posX + "\n");
@@ -380,6 +389,8 @@ public class LaberintoPanel extends JPanel implements KeyListener {
             Properties properties = new Properties();
             properties.load(input);
             mazeState.load(properties);
+            skillTreeProgression.load(properties);
+            skillTreeProgression.reapplyPurchasedStats(playerData);
             syncLegacyFieldsFromState();
             addKeyListener(this);
         }
@@ -700,10 +711,8 @@ private void jump() {
                 skillCategoryIndex = Math.min(SkillCategory.values().length - 1, skillCategoryIndex + 1);
                 clampSkillSelection();
             } else if (key == KeyEvent.VK_ENTER) {
-                Skill skill = getSelectedSkill();
-                if (skill != null && playerData.getSkillPoints() > 0) {
-                    playerData.unlockSkill(skill.getId());
-                }
+                PurchaseResult result = skillTreeProgression.purchaseSelected(playerData, mazeState, getCurrentSkillCategory(), skillSelectionIndex);
+                menuMessage = result.getMessage();
             }
         }
         repaint();
@@ -746,8 +755,9 @@ private void jump() {
         g2.setColor(MENU_BACKDROP);
         g2.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
 
-        int boxWidth = Math.min(620, BASE_WIDTH - 40);
-        int boxHeight = Math.min(420, BASE_HEIGHT - 40);
+        boolean largeMenu = menuTabIndex == 1 || menuTabIndex == 2;
+        int boxWidth = largeMenu ? Math.min(740, BASE_WIDTH - 24) : Math.min(620, BASE_WIDTH - 40);
+        int boxHeight = largeMenu ? Math.min(520, BASE_HEIGHT - 34) : Math.min(420, BASE_HEIGHT - 40);
         int boxX = (BASE_WIDTH - boxWidth) / 2;
         int boxY = (BASE_HEIGHT - boxHeight) / 2;
 
@@ -857,84 +867,8 @@ private void jump() {
     }
 
     private void drawSkillsMenu(Graphics2D g2, int x, int y, int width) {
-        g2.drawString("Skill points: " + playerData.getSkillPoints(), x, y);
-        g2.drawString("A/D: Category   Arrows: Move   Enter: Unlock", x, y + 20);
-
-        int topY = y + 60;
-        int columns = SkillCategory.values().length;
-        int colWidth = Math.max(1, width / columns);
-        int rowHeight = 40;
-
-        Map<String, Point> positions = new HashMap<>();
-        List<List<Skill>> grid = new ArrayList<>();
-        for (SkillCategory category : SkillCategory.values()) {
-            List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
-            grid.add(skills);
-        }
-
-        for (int c = 0; c < grid.size(); c++) {
-            int colX = x + c * colWidth;
-            g2.setColor(Color.WHITE);
-            g2.drawString(formatSkillCategory(SkillCategory.values()[c]), colX + 6, topY - 10);
-            List<Skill> skills = grid.get(c);
-            for (int r = 0; r < skills.size(); r++) {
-                int nodeX = colX + colWidth / 2;
-                int nodeY = topY + r * rowHeight;
-                positions.put(skills.get(r).getId(), new Point(nodeX, nodeY));
-            }
-        }
-
-        g2.setColor(new Color(200, 200, 200, 160));
-        for (List<Skill> skills : grid) {
-            for (Skill skill : skills) {
-                Point to = positions.get(skill.getId());
-                if (to == null) {
-                    continue;
-                }
-                for (String prereq : skill.getPrerequisites()) {
-                    Point from = positions.get(prereq);
-                    if (from != null) {
-                        g2.drawLine(from.x, from.y, to.x, to.y);
-                    }
-                }
-            }
-        }
-
-        for (int c = 0; c < grid.size(); c++) {
-            List<Skill> skills = grid.get(c);
-            for (int r = 0; r < skills.size(); r++) {
-                Skill skill = skills.get(r);
-                Point point = positions.get(skill.getId());
-                if (point == null) {
-                    continue;
-                }
-                boolean unlocked = playerData.getSkillTree().isUnlocked(skill.getId());
-                boolean canUnlock = playerData.getSkillTree().canUnlock(skill.getId());
-                Color fill = new Color(60, 60, 60);
-                if (unlocked) {
-                    fill = new Color(60, 180, 100);
-                } else if (canUnlock) {
-                    fill = new Color(200, 180, 60);
-                }
-                g2.setColor(fill);
-                g2.fillOval(point.x - 10, point.y - 10, 20, 20);
-                g2.setColor(Color.WHITE);
-                g2.drawOval(point.x - 10, point.y - 10, 20, 20);
-
-                if (c == skillCategoryIndex && r == skillSelectionIndex) {
-                    g2.setColor(Color.RED);
-                    g2.drawOval(point.x - 14, point.y - 14, 28, 28);
-                }
-            }
-        }
-
-        Skill selected = getSelectedSkill();
-        if (selected != null) {
-            int infoY = y + 330;
-            g2.setColor(Color.WHITE);
-            g2.drawString(selected.getName() + " - " + selected.getShortDescription(), x, infoY);
-            g2.drawString(selected.getCategory().name() + " / " + selected.getType().name(), x, infoY + 18);
-        }
+        skillTreeMenuRenderer.draw(g2, playerData, mazeState, skillTreeProgression, x, y - 12, width, 400,
+                skillCategoryIndex, skillSelectionIndex, menuMessage);
     }
 
     private String formatSkillCategory(SkillCategory category) {
@@ -963,43 +897,7 @@ private void jump() {
     }
 
     private void drawInventoryMenu(Graphics2D g2, int x, int y, int width) {
-        g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Dialog", Font.BOLD, 16));
-        g2.drawString("Inventory", x, y);
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
-        g2.setColor(MENU_MUTED_TEXT);
-        g2.drawString("Enter: Equip   M/Esc: Close", x + 120, y);
-
-        int line = y + 32;
-        List<Item> items = playerData.getInventoryItems();
-        if (items.isEmpty()) {
-            g2.setColor(MENU_MUTED_TEXT);
-            g2.drawString("Inventory is empty.", x, line);
-            return;
-        }
-
-        int slotX = x + width - 190;
-        g2.setColor(MENU_MUTED_TEXT);
-        g2.drawString("Slot", slotX, line - 10);
-        g2.drawString("Bonus", slotX + 72, line - 10);
-
-        for (int i = 0; i < items.size(); i++) {
-            Item item = items.get(i);
-            if (i == inventorySelection) {
-                g2.setColor(MENU_SELECTION);
-                g2.fillRoundRect(x - 8, line - 15, width, 22, 6, 6);
-            }
-            g2.setColor(Color.WHITE);
-            g2.drawString(item.getName(), x, line);
-            g2.setColor(MENU_MUTED_TEXT);
-            g2.drawString(item.getSlot().name(), slotX, line);
-            g2.setColor(new Color(210, 175, 78));
-            g2.drawString(item.getBonusSummary(), slotX + 72, line);
-            line += 24;
-            if (line > y + 330) {
-                break;
-            }
-        }
+        inventoryMenuRenderer.draw(g2, playerData, x, y - 12, width, 400, inventorySelection);
     }
 
 
@@ -1018,6 +916,8 @@ private void jump() {
             Properties properties = new Properties();
             properties.load(input);
             mazeState.load(properties);
+            skillTreeProgression.load(properties);
+            skillTreeProgression.reapplyPurchasedStats(playerData);
             syncLegacyFieldsFromState();
             addKeyListener(this);
         }

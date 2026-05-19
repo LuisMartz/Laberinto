@@ -19,6 +19,14 @@ public class PlayerData {
     private int baseCon = 5;
     private int baseHp = 100;
     private int baseMp = 50;
+    private int treeBonusStr = 0;
+    private int treeBonusDef = 0;
+    private int treeBonusAgi = 0;
+    private int treeBonusLuck = 0;
+    private int treeBonusMind = 0;
+    private int treeBonusCon = 0;
+    private int treeBonusHp = 0;
+    private int treeBonusMp = 0;
     private int currentHp;
     private int currentMp;
 
@@ -127,6 +135,65 @@ public class PlayerData {
         return false;
     }
 
+    public void applyTreeStatBonus(StatType statType, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        switch (statType) {
+            case STR:
+                treeBonusStr += amount;
+                break;
+            case DEF:
+                treeBonusDef += amount;
+                break;
+            case AGI:
+                treeBonusAgi += amount;
+                break;
+            case LUCK:
+                treeBonusLuck += amount;
+                break;
+            case MIND:
+                treeBonusMind += amount;
+                break;
+            case CON:
+                treeBonusCon += amount;
+                break;
+            default:
+                return;
+        }
+        currentHp = clamp(currentHp, 0, getMaxHp());
+        currentMp = clamp(currentMp, 0, getMaxMp());
+    }
+
+    public void resetTreeBonuses() {
+        treeBonusStr = 0;
+        treeBonusDef = 0;
+        treeBonusAgi = 0;
+        treeBonusLuck = 0;
+        treeBonusMind = 0;
+        treeBonusCon = 0;
+        treeBonusHp = 0;
+        treeBonusMp = 0;
+        currentHp = clamp(currentHp, 0, getMaxHp());
+        currentMp = clamp(currentMp, 0, getMaxMp());
+    }
+
+    public void applyTreeHpBonus(int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        treeBonusHp += amount;
+        currentHp = clamp(currentHp + amount, 0, getMaxHp());
+    }
+
+    public void applyTreeMpBonus(int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        treeBonusMp += amount;
+        currentMp = clamp(currentMp + amount, 0, getMaxMp());
+    }
+
     public SkillTree getSkillTree() {
         return skillTree;
     }
@@ -156,35 +223,35 @@ public class PlayerData {
     }
 
     public int getTotalStr() {
-        return baseStr + inventory.getBonusStr() + skillTree.getPassiveBonusStr();
+        return baseStr + treeBonusStr + inventory.getBonusStr() + skillTree.getPassiveBonusStr();
     }
 
     public int getTotalDef() {
-        return baseDef + inventory.getBonusDef() + skillTree.getPassiveBonusDef();
+        return baseDef + treeBonusDef + inventory.getBonusDef() + skillTree.getPassiveBonusDef();
     }
 
     public int getTotalAgi() {
-        return baseAgi + inventory.getBonusAgi() + skillTree.getPassiveBonusAgi();
+        return baseAgi + treeBonusAgi + inventory.getBonusAgi() + skillTree.getPassiveBonusAgi();
     }
 
     public int getTotalLuck() {
-        return baseLuck + inventory.getBonusLuck() + skillTree.getPassiveBonusLuck();
+        return baseLuck + treeBonusLuck + inventory.getBonusLuck() + skillTree.getPassiveBonusLuck();
     }
 
     public int getTotalMind() {
-        return baseMind + skillTree.getPassiveBonusMp() / 5;
+        return baseMind + treeBonusMind + skillTree.getPassiveBonusMp() / 5;
     }
 
     public int getTotalCon() {
-        return baseCon + skillTree.getPassiveBonusHp() / 10;
+        return baseCon + treeBonusCon + skillTree.getPassiveBonusHp() / 10;
     }
 
     public int getMaxHp() {
-        return baseHp + baseCon * 10 + inventory.getBonusHp() + skillTree.getPassiveBonusHp();
+        return baseHp + getTotalCon() * 10 + treeBonusHp + inventory.getBonusHp() + skillTree.getPassiveBonusHp();
     }
 
     public int getMaxMp() {
-        return baseMp + baseMind * 5 + inventory.getBonusMp() + skillTree.getPassiveBonusMp();
+        return baseMp + getTotalMind() * 5 + treeBonusMp + inventory.getBonusMp() + skillTree.getPassiveBonusMp();
     }
 
     public int getCurrentHp() {

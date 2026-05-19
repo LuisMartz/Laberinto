@@ -99,6 +99,14 @@ public class MazeState {
         score += amount;
     }
 
+    public boolean spendScore(int amount) {
+        if (amount < 0 || score < amount) {
+            return false;
+        }
+        score -= amount;
+        return true;
+    }
+
     public Enemy getEnemy() {
         return enemy;
     }
