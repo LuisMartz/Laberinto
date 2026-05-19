@@ -43,6 +43,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     private InventoryMenuRenderer inventoryMenuRenderer;
     private SkillTreeMenuRenderer skillTreeMenuRenderer;
     private SkillTreeProgression skillTreeProgression;
+    private LootFactory lootFactory;
     private CombatEnemy pendingCombatEnemy;
     private String menuMessage = "";
     private boolean isFightingGameStarted = false;
@@ -143,6 +144,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         inventoryMenuRenderer = new InventoryMenuRenderer();
         skillTreeMenuRenderer = new SkillTreeMenuRenderer();
         skillTreeProgression = new SkillTreeProgression();
+        lootFactory = new LootFactory();
         mazeController = new MazeController(mazeState, new MazeController.Listener() {
             @Override
             public void onCombatRequested(CombatEnemy enemy) {
@@ -293,6 +295,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         mazeState.restorePlayerPosition();
         if (playerWon) {
             mazeState.defeatEnemy();
+            applyCombatLoot();
         } else {
             repositionEnemyAwayFromPlayer();
         }
@@ -759,6 +762,16 @@ private void jump() {
         if (menuTabIndex == 1) {
             int contentX = boxX + 20;
             int contentY = boxY + 58;
+            EquipmentSlot slot = inventoryMenuRenderer.hitTestEquipmentSlot(point.x, point.y, contentX, contentY - 12,
+                    boxWidth - 40, 400);
+            if (slot != null) {
+                if (playerData.unequipItem(slot)) {
+                    inventorySelection = Math.max(0, playerData.getInventoryItems().size() - 1);
+                    menuMessage = slot.name() + " unequipped.";
+                }
+                repaint();
+                return;
+            }
             int index = inventoryMenuRenderer.hitTestBagIndex(point.x, point.y, contentX, contentY - 12,
                     boxWidth - 40, 400, playerData.getInventoryItems().size());
             if (index >= 0) {
@@ -771,6 +784,19 @@ private void jump() {
                 repaint();
             }
         }
+    }
+
+    private void applyCombatLoot() {
+        CombatEnemy enemy = pendingCombatEnemy == null ? CombatEnemy.forLevel(mazeState.getLevel(), false) : pendingCombatEnemy;
+        LootDrop drop = lootFactory.rollForEnemy(enemy, mazeState.getLevel(), false);
+        mazeState.addScore(drop.getCoins());
+        StringBuilder message = new StringBuilder("Loot: +").append(drop.getCoins()).append(" coins");
+        if (drop.hasItem()) {
+            playerData.addItem(drop.getItem());
+            message.append(", ").append(drop.getRarity().getLabel()).append(" item: ").append(drop.getItem().getName());
+        }
+        menuMessage = message.toString();
+        JOptionPane.showMessageDialog(this, message.toString());
     }
 
     private Point toBasePoint(int screenX, int screenY) {
@@ -961,6 +987,11 @@ private void jump() {
 
     private void drawInventoryMenu(Graphics2D g2, int x, int y, int width) {
         inventoryMenuRenderer.draw(g2, playerData, x, y - 12, width, 400, inventorySelection);
+        if (menuMessage != null && !menuMessage.isEmpty()) {
+            g2.setColor(Color.WHITE);
+            g2.setFont(new Font("Dialog", Font.PLAIN, 11));
+            g2.drawString(menuMessage, x + 12, y + 390);
+        }
     }
 
 

@@ -54,6 +54,21 @@ public class InventoryMenuRenderer {
         return index >= 0 && index < itemCount ? index : -1;
     }
 
+    public EquipmentSlot hitTestEquipmentSlot(int mouseX, int mouseY, int x, int y, int width, int height) {
+        int gap = 18;
+        int bagWidth = Math.min(300, width / 2 - gap);
+        int characterX = x + bagWidth + gap;
+        int characterWidth = width - bagWidth - gap;
+        Map<EquipmentSlot, SlotBox> boxes = createEquipmentLayout(characterX, y, characterWidth);
+        for (Map.Entry<EquipmentSlot, SlotBox> entry : boxes.entrySet()) {
+            SlotBox box = entry.getValue();
+            if (mouseX >= box.x && mouseX <= box.x + box.size && mouseY >= box.y && mouseY <= box.y + box.size) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
     private void drawBag(Graphics2D g2, List<Item> items, int x, int y, int width, int height, int selectedIndex) {
         drawPanel(g2, x, y, width, height);
         drawTitle(g2, "INVENTORY", x + 12, y + 22);

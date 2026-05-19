@@ -34,6 +34,15 @@ class Inventory {
         return true;
     }
 
+    public boolean unequipItem(EquipmentSlot slot) {
+        Item item = equipped.remove(slot);
+        if (item == null) {
+            return false;
+        }
+        items.add(item);
+        return true;
+    }
+
     public int getBonusStr() {
         int total = 0;
         for (Item item : equipped.values()) {

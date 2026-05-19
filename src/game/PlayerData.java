@@ -273,10 +273,21 @@ public class PlayerData {
     public boolean equipItem(int index) {
         boolean equipped = inventory.equipItem(index);
         if (equipped) {
-            currentHp = clamp(currentHp, 0, getMaxHp());
-            currentMp = clamp(currentMp, 0, getMaxMp());
+            clampVitals();
         }
         return equipped;
+    }
+
+    public boolean unequipItem(EquipmentSlot slot) {
+        boolean unequipped = inventory.unequipItem(slot);
+        if (unequipped) {
+            clampVitals();
+        }
+        return unequipped;
+    }
+
+    public void addItem(Item item) {
+        inventory.addItem(item);
     }
 
     public List<Item> getInventoryItems() {
@@ -324,5 +335,10 @@ public class PlayerData {
 
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    private void clampVitals() {
+        currentHp = clamp(currentHp, 0, getMaxHp());
+        currentMp = clamp(currentMp, 0, getMaxMp());
     }
 }
