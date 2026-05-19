@@ -130,7 +130,11 @@ class PanelTriangulo extends JPanel {
                 } else if (codigoTecla == KeyEvent.VK_RIGHT && indiceOpcionSeleccionada < currentOptions.length - 1) {
                     indiceOpcionSeleccionada++;
                 } else if (codigoTecla == KeyEvent.VK_ENTER) {
-                    handleSelection();
+                    if (isCurrentOptionEnabled()) {
+                        handleSelection();
+                    } else {
+                        logLine("No option available.");
+                    }
                 } else if (codigoTecla == KeyEvent.VK_ESCAPE) {
                     if (menuState != MenuState.MAIN) {
                         setMenuState(MenuState.MAIN);
@@ -171,6 +175,10 @@ class PanelTriangulo extends JPanel {
             logLine("Player guards.");
             endPlayerTurn();
         } else if (option.equals("Skills")) {
+            if (!hasUsableSkills()) {
+                logLine("No skills available.");
+                return;
+            }
             setMenuState(MenuState.CATEGORY);
         } else if (option.equals("Items")) {
             if (!playerData.hasConsumables()) {
@@ -187,6 +195,10 @@ class PanelTriangulo extends JPanel {
             return;
         }
         currentCategory = SkillCategory.values()[indiceOpcionSeleccionada];
+        if (!hasActiveSkillsInCategory(currentCategory)) {
+            logLine("No active skills in this category.");
+            return;
+        }
         List<Skill> unlocked = playerData.getSkillTree().getUnlockedSkillsByCategory(currentCategory);
         currentSkillList = new ArrayList<>();
         for (Skill skill : unlocked) {
@@ -218,6 +230,12 @@ class PanelTriangulo extends JPanel {
 
     private void handleItemSelection() {
         if (indiceOpcionSeleccionada == currentOptions.length - 1) {
+            setMenuState(MenuState.MAIN);
+            return;
+        }
+        currentItemList = playerData.getConsumables();
+        if (indiceOpcionSeleccionada < 0 || indiceOpcionSeleccionada >= currentItemList.size()) {
+            logLine("Item unavailable.");
             setMenuState(MenuState.MAIN);
             return;
         }
@@ -544,26 +562,66 @@ class PanelTriangulo extends JPanel {
     }
 
     private Color getOptionColor(int optionIndex) {
-        if (menuState != MenuState.MAIN) {
-            return Color.WHITE;
+        return isOptionEnabled(optionIndex) ? Color.WHITE : Color.GRAY;
+    }
+
+    private boolean isCurrentOptionEnabled() {
+        return isOptionEnabled(indiceOpcionSeleccionada);
+    }
+
+    private boolean isOptionEnabled(int optionIndex) {
+        if (optionIndex < 0 || optionIndex >= currentOptions.length) {
+            return false;
         }
-        String option = currentOptions[optionIndex];
-        if (option.equals("Skills")) {
-            return hasUsableSkills() ? Color.WHITE : Color.GRAY;
+        if (menuState == MenuState.MAIN) {
+            String option = currentOptions[optionIndex];
+            if (option.equals("Skills")) {
+                return hasUsableSkills();
+            }
+            if (option.equals("Items")) {
+                return playerData.hasConsumables();
+            }
+            return true;
         }
-        if (option.equals("Items")) {
-            return playerData.hasConsumables() ? Color.WHITE : Color.GRAY;
+        if (menuState == MenuState.CATEGORY) {
+            if (optionIndex == currentOptions.length - 1) {
+                return true;
+            }
+            return hasActiveSkillsInCategory(SkillCategory.values()[optionIndex]);
         }
-        return Color.WHITE;
+        if (menuState == MenuState.SKILL_LIST) {
+            if (optionIndex == currentOptions.length - 1) {
+                return true;
+            }
+            if (optionIndex >= currentSkillList.size()) {
+                return false;
+            }
+            return currentSkillList.get(optionIndex).getMpCost() <= playerData.getCurrentMp();
+        }
+        if (menuState == MenuState.ITEM_LIST) {
+            if (optionIndex == currentOptions.length - 1) {
+                return true;
+            }
+            currentItemList = playerData.getConsumables();
+            return optionIndex < currentItemList.size() && currentItemList.get(optionIndex).getCount() > 0;
+        }
+        return true;
     }
 
     private boolean hasUsableSkills() {
         for (SkillCategory category : SkillCategory.values()) {
-            List<Skill> unlocked = playerData.getSkillTree().getUnlockedSkillsByCategory(category);
-            for (Skill skill : unlocked) {
-                if (skill.getType() == SkillType.ACTIVE) {
-                    return true;
-                }
+            if (hasActiveSkillsInCategory(category)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasActiveSkillsInCategory(SkillCategory category) {
+        List<Skill> unlocked = playerData.getSkillTree().getUnlockedSkillsByCategory(category);
+        for (Skill skill : unlocked) {
+            if (skill.getType() == SkillType.ACTIVE) {
+                return true;
             }
         }
         return false;
