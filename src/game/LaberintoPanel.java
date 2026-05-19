@@ -6,6 +6,8 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
@@ -129,6 +131,12 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         this.gameHost = gameHost;
         setFocusable(true);
         addKeyListener(this);
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                handleMousePressed(e);
+            }
+        });
         playerData = new PlayerData();
         mazeState = new MazeState();
         mazeRenderer = new MazeRenderer();
@@ -722,6 +730,61 @@ private void jump() {
         statsSelection = 0;
         inventorySelection = 0;
         skillSelectionIndex = 0;
+    }
+
+    private void handleMousePressed(MouseEvent event) {
+        requestFocusInWindow();
+        if (!menuOpen) {
+            return;
+        }
+        Point point = toBasePoint(event.getX(), event.getY());
+        if (point == null) {
+            return;
+        }
+
+        boolean largeMenu = menuTabIndex == 1 || menuTabIndex == 2;
+        int boxWidth = largeMenu ? Math.min(740, BASE_WIDTH - 24) : Math.min(620, BASE_WIDTH - 40);
+        int boxHeight = largeMenu ? Math.min(520, BASE_HEIGHT - 34) : Math.min(420, BASE_HEIGHT - 40);
+        int boxX = (BASE_WIDTH - boxWidth) / 2;
+        int boxY = (BASE_HEIGHT - boxHeight) / 2;
+
+        if (point.y >= boxY && point.y <= boxY + 34 && point.x >= boxX && point.x <= boxX + boxWidth) {
+            int tabWidth = boxWidth / 4;
+            menuTabIndex = Math.max(0, Math.min(3, (point.x - boxX) / tabWidth));
+            resetMenuSelections();
+            repaint();
+            return;
+        }
+
+        if (menuTabIndex == 1) {
+            int contentX = boxX + 20;
+            int contentY = boxY + 58;
+            int index = inventoryMenuRenderer.hitTestBagIndex(point.x, point.y, contentX, contentY - 12,
+                    boxWidth - 40, 400, playerData.getInventoryItems().size());
+            if (index >= 0) {
+                if (index == inventorySelection || event.getClickCount() > 1) {
+                    playerData.equipItem(index);
+                    inventorySelection = Math.min(inventorySelection, Math.max(0, playerData.getInventoryItems().size() - 1));
+                } else {
+                    inventorySelection = index;
+                }
+                repaint();
+            }
+        }
+    }
+
+    private Point toBasePoint(int screenX, int screenY) {
+        double scaleX = (double) getWidth() / BASE_WIDTH;
+        double scaleY = (double) getHeight() / BASE_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+        int offsetX = (int) ((getWidth() - BASE_WIDTH * scale) / 2);
+        int offsetY = (int) ((getHeight() - BASE_HEIGHT * scale) / 2);
+        int x = (int) ((screenX - offsetX) / scale);
+        int y = (int) ((screenY - offsetY) / scale);
+        if (x < 0 || x > BASE_WIDTH || y < 0 || y > BASE_HEIGHT) {
+            return null;
+        }
+        return new Point(x, y);
     }
 
     private void clampSkillSelection() {

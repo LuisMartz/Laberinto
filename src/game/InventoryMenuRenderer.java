@@ -36,6 +36,24 @@ public class InventoryMenuRenderer {
         g2.dispose();
     }
 
+    public int hitTestBagIndex(int mouseX, int mouseY, int x, int y, int width, int height, int itemCount) {
+        int gap = 18;
+        int bagWidth = Math.min(300, width / 2 - gap);
+        int columns = 5;
+        int rows = 6;
+        int cell = Math.min(42, (bagWidth - 28) / columns);
+        int gridX = x + 14;
+        int gridY = y + 34;
+
+        if (mouseX < gridX || mouseY < gridY || mouseX >= gridX + columns * cell || mouseY >= gridY + rows * cell) {
+            return -1;
+        }
+        int column = (mouseX - gridX) / cell;
+        int row = (mouseY - gridY) / cell;
+        int index = row * columns + column;
+        return index >= 0 && index < itemCount ? index : -1;
+    }
+
     private void drawBag(Graphics2D g2, List<Item> items, int x, int y, int width, int height, int selectedIndex) {
         drawPanel(g2, x, y, width, height);
         drawTitle(g2, "INVENTORY", x + 12, y + 22);
