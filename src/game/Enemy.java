@@ -3,12 +3,21 @@ package game;
 public class Enemy {
     private final String name;
     private final boolean boss;
+    private final CombatEnemy combatEnemy;
     private final GridPosition position;
     private boolean alive = true;
 
     public Enemy(String name, boolean boss, int row, int column) {
         this.name = name;
         this.boss = boss;
+        this.combatEnemy = CombatEnemy.forLevel(1, boss);
+        this.position = new GridPosition(row, column);
+    }
+
+    public Enemy(CombatEnemy combatEnemy, boolean boss, int row, int column) {
+        this.name = combatEnemy.getName();
+        this.boss = boss;
+        this.combatEnemy = combatEnemy;
         this.position = new GridPosition(row, column);
     }
 
@@ -22,6 +31,10 @@ public class Enemy {
 
     public boolean isAlive() {
         return alive;
+    }
+
+    public CombatEnemy getCombatEnemy() {
+        return combatEnemy;
     }
 
     public void defeat() {

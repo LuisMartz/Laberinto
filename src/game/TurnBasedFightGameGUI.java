@@ -57,12 +57,14 @@ class PanelTriangulo extends JPanel {
     private int coordenadaBarraSaludEnemigoY = 20;
     private int anchoBarraSaludEnemigo = 200;
     private int altoBarraSaludEnemigo = 20;
-    private int saludEnemigoMaxima = 120;
-    private int saludEnemigoActual = 120;
-    private int enemyStr = 6;
-    private int enemyDef = 4;
-    private int enemyAgi = 4;
-    private int enemyLuck = 3;
+    private int saludEnemigoMaxima;
+    private int saludEnemigoActual;
+    private int enemyStr;
+    private int enemyDef;
+    private int enemyAgi;
+    private int enemyLuck;
+    private int xpReward;
+    private String enemyName;
 
     private boolean playerTurn = true;
     private boolean playerGuarding = false;
@@ -79,11 +81,23 @@ class PanelTriangulo extends JPanel {
     private static final int POTION_HEAL = 30;
 
     public PanelTriangulo() {
-        this(new PlayerData());
+        this(new PlayerData(), CombatEnemy.forLevel(1, false));
     }
 
     public PanelTriangulo(PlayerData playerData) {
+        this(playerData, CombatEnemy.forLevel(1, false));
+    }
+
+    public PanelTriangulo(PlayerData playerData, CombatEnemy combatEnemy) {
         this.playerData = playerData;
+        this.enemyName = combatEnemy.getName();
+        this.saludEnemigoMaxima = combatEnemy.getMaxHp();
+        this.saludEnemigoActual = combatEnemy.getMaxHp();
+        this.enemyStr = combatEnemy.getStr();
+        this.enemyDef = combatEnemy.getDef();
+        this.enemyAgi = combatEnemy.getAgi();
+        this.enemyLuck = combatEnemy.getLuck();
+        this.xpReward = combatEnemy.getXpReward();
         setPreferredSize(new Dimension(800, 600));
         setBackground(Color.WHITE);
         setFocusable(true);
@@ -101,7 +115,7 @@ class PanelTriangulo extends JPanel {
 
         indiceOpcionSeleccionada = 0;
         actualizarPosicionTriangulo();
-        logLine("Battle start.");
+        logLine(enemyName + " appears.");
         logLine("Player turn.");
 
         addKeyListener(new KeyAdapter() {
@@ -449,8 +463,8 @@ class PanelTriangulo extends JPanel {
             combatEnded = true;
             boolean playerWon = saludEnemigoActual <= 0 && playerData.getCurrentHp() > 0;
             if (playerWon) {
-                logLine("Victory! XP +" + XP_REWARD + ".");
-                boolean leveled = playerData.addExperience(XP_REWARD);
+                logLine("Victory! XP +" + xpReward + ".");
+                boolean leveled = playerData.addExperience(xpReward);
                 if (leveled) {
                     logLine("Level up! Level " + playerData.getLevel() + ".");
                 }
@@ -495,6 +509,7 @@ class PanelTriangulo extends JPanel {
 
         g2.setColor(Color.WHITE);
         g2.drawRect(coordenadaBarraSaludEnemigoX, coordenadaBarraSaludEnemigoY, anchoBarraSaludEnemigo, altoBarraSaludEnemigo);
+        g2.drawString(enemyName, coordenadaBarraSaludEnemigoX, coordenadaBarraSaludEnemigoY + 40);
         g2.setColor(Color.RED);
         int anchoRellenoBarraSaludEnemigo = (int) ((double) saludEnemigoActual / saludEnemigoMaxima * anchoBarraSaludEnemigo);
         g2.fillRect(coordenadaBarraSaludEnemigoX, coordenadaBarraSaludEnemigoY, anchoRellenoBarraSaludEnemigo, altoBarraSaludEnemigo);

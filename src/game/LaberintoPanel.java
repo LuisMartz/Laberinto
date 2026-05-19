@@ -7,8 +7,10 @@ import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -17,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
+import java.util.Properties;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -32,7 +35,10 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     private static final Color MENU_SELECTION = new Color(118, 56, 42);
     private static final Color MENU_MUTED_TEXT = new Color(170, 170, 180);
     private final GameHost gameHost;
-    private long enemyRandomSeed; // Store the seed used to generate enemy's position
+    private MazeState mazeState;
+    private MazeController mazeController;
+    private MazeRenderer mazeRenderer;
+    private CombatEnemy pendingCombatEnemy;
     private boolean isFightingGameStarted = false;
     private boolean inCombat = false;
     private boolean menuOpen = false;
@@ -41,88 +47,10 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     private int statsSelection = 0;
     private int skillCategoryIndex = 0;
     private int skillSelectionIndex = 0;
-    private boolean enemyAlive = true;
-    private int savedPosX = 0;
-    private int savedPosY = 0;
     private Timer enemyTimer;
     private final PlayerData playerData;
-    private DungeonFloor dungeonFloor;
-    private ImageIcon iconoJugador;
-    private ImageIcon iconoEnemigo;
-    private Enemy enemigo;
-    private int HealthBar;
     private int nivelActual = 1;
-    private int puntuacion = 0;
     private int saveCounter = 1; // Counter for generating unique save file names
-    private ImageIcon pared;
-    private ImageIcon suelo;
-    private ImageIcon palabra;
-    private ImageIcon salida;
-
-    private int[][] laberinto = {
-        {0, 1, 0, 0, 0, 0, 0},
-        {0, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 1, 0, 0, 0},
-        {0, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 0, 0, 1, 0},
-        {1, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 0, 0, 0, 0},
-    };
-    private int[][] laberinto2 =
-    {
-        {1, 0, 0, 0, 0, 0, 0},
-        {1, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 1, 0, 1, 0},
-        {1, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 0, 0, 1, 0},
-        {1, 1, 1, 1, 1, 1, 0},
-        {0, 0, 0, 0, 0, 1, 0}
-    };
-    private int[][] laberinto3 =
-    {
-    {0, 1, 0, 0, 0, 0, 0},
-    {0, 1, 1, 1, 1, 1, 1},
-    {0, 0, 0, 1, 0, 0, 1},
-    {0, 1, 1, 1, 1, 1, 1},
-    {0, 0, 0, 0, 0, 1, 0},
-    {1, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 0, 0, 0, 0}
-    };
-    private int[][] laberinto4 =
-    {
-    {0, 1, 0, 0, 0, 1, 0},
-    {1, 1, 1, 1, 1, 1, 0},
-    {1, 0, 0, 1, 0, 0, 0},
-    {1, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 0, 0, 1, 0},
-    {1, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 0, 0, 1, 0}
-    };
-    private int[][] laberinto5 =
-    {
-    {0, 1, 0, 0, 0, 0, 0},
-    {0, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 1, 0, 0, 0},
-    {0, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 0, 0, 1, 0},
-    {1, 1, 1, 1, 1, 1, 0},
-    {0, 0, 0, 0, 0, 0, 0}
-    };
-    private int[][] laberinto6 =
-    {
-    {0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,},
-    {0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 1,},
-    {0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 0, 0, 0, 1,},
-    {1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1,},
-    {0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0,},
-    {1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0,},
-    {0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 0,}
-    };
-    
-    
-
-    private int posX = 0;
-    private int posY = 0;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -198,22 +126,31 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         setFocusable(true);
         addKeyListener(this);
         playerData = new PlayerData();
-        setCurrentMaze(laberinto);
-        colocarLetrasAleatorias();
-        pared = AssetLoader.icon("tiles/pared.png");
-        palabra = AssetLoader.icon("tiles/palabra.png");
-        salida = AssetLoader.icon("tiles/salida.png");
-        suelo = AssetLoader.icon("tiles/suelo.png");
-        iconoJugador = AssetLoader.icon("player/Larry.png");
-        iconoEnemigo = AssetLoader.icon("enemies/Enemigo.png");
-        // Create an enemy at a random position
-        enemigo = new Enemy("Enemy", false, 0, 0);
-        colocarEnemigoAleatorio();
+        mazeState = new MazeState();
+        mazeRenderer = new MazeRenderer();
+        mazeController = new MazeController(mazeState, new MazeController.Listener() {
+            @Override
+            public void onCombatRequested(CombatEnemy enemy) {
+                startCombat(enemy);
+            }
+
+            @Override
+            public void onLevelExitRequested(int nextLevel) {
+                nivelActual = nextLevel;
+                cargarSiguienteLaberinto();
+            }
+
+            @Override
+            public void onMazeChanged() {
+                repaint();
+            }
+        });
+        nivelActual = mazeState.getLevel();
         // Schedule a task to move the enemy periodically
         enemyTimer = new Timer(500, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                moverEnemigo();
+                mazeController.moveEnemy();
                 repaint();
             }
         });
@@ -221,21 +158,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
 
-    private void colocarEnemigoAleatorio() {
-        Random random = new Random();
-        int x, y;
-        do {
-            x = random.nextInt(laberinto.length);
-            y = random.nextInt(laberinto[0].length);
-        } while (laberinto[x][y] != 1);
-        enemigo.setPosition(x, y);
-    }
-
-    private void setCurrentMaze(int[][] maze) {
-        dungeonFloor = DungeonFactory.fromLegacyMaze(nivelActual, maze);
-        laberinto = dungeonFloor.getCurrentRoom().getTiles();
-    }
-
+    /*
     private void moverEnemigo() {
         if (inCombat || menuOpen || !enemyAlive) {
             return;
@@ -278,12 +201,21 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         }
     }
     
+    */
     private void startCombat() {
+        startCombat(mazeState.getEnemy() == null ? CombatEnemy.forLevel(mazeState.getLevel(), false) : mazeState.getEnemy().getCombatEnemy());
+    }
+
+    private void syncLegacyFieldsFromState() {
+        nivelActual = mazeState.getLevel();
+    }
+
+    private void startCombat(CombatEnemy combatEnemy) {
         if (isFightingGameStarted || inCombat) {
             return;
         }
-        savedPosX = posX;
-        savedPosY = posY;
+        pendingCombatEnemy = combatEnemy;
+        mazeState.savePlayerPosition();
         inCombat = true;
         isFightingGameStarted = true;
         if (enemyTimer != null) {
@@ -293,7 +225,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
     private void showCombatPanel() {
-        PanelTriangulo combatPanel = new PanelTriangulo(playerData);
+        PanelTriangulo combatPanel = new PanelTriangulo(playerData, pendingCombatEnemy);
         combatPanel.setCombatEndListener(playerWon -> {
             resumeFromCombat(playerWon);
             if (gameHost != null) {
@@ -343,14 +275,13 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     private void resumeFromCombat(boolean playerWon) {
         inCombat = false;
         isFightingGameStarted = false;
-        posX = savedPosX;
-        posY = savedPosY;
+        mazeState.restorePlayerPosition();
         if (playerWon) {
-            removeEnemyFromMaze();
-            enemyAlive = false;
+            mazeState.defeatEnemy();
         } else {
             repositionEnemyAwayFromPlayer();
         }
+        syncLegacyFieldsFromState();
         if (enemyTimer != null) {
             enemyTimer.start();
         }
@@ -359,6 +290,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         }
     }
 
+    /*
     private void removeEnemyFromMaze() {
         int oldX = enemigo.getRow();
         int oldY = enemigo.getColumn();
@@ -370,25 +302,20 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         enemigo.defeat();
     }
 
+    */
     private void repositionEnemyAwayFromPlayer() {
-        int oldX = enemigo.getRow();
-        int oldY = enemigo.getColumn();
-        if (oldX >= 0 && oldX < laberinto.length && oldY >= 0 && oldY < laberinto[0].length) {
-            if (laberinto[oldX][oldY] == 4) {
-                laberinto[oldX][oldY] = 1;
-            }
-        }
         Random random = new Random();
-        int x;
-        int y;
+        int x = 1;
+        int y = 1;
         do {
-            x = random.nextInt(laberinto.length);
-            y = random.nextInt(laberinto[0].length);
-        } while (laberinto[x][y] != 1 || (x == posX && y == posY));
-        enemigo.setPosition(x, y);
-        laberinto[x][y] = 4;
+            x = random.nextInt(mazeState.getRows());
+            y = random.nextInt(mazeState.getColumns());
+        } while (mazeState.getTile(x, y) != TileType.FLOOR.getCode()
+                || Math.abs(x - mazeState.getPlayerRow()) + Math.abs(y - mazeState.getPlayerColumn()) < 4);
+        mazeState.moveEnemyTo(x, y);
     }
 
+    /*
     private void colocarLetrasAleatorias() {
         Random random = new Random();
         int letrasColocadas = 0;
@@ -404,6 +331,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         }
     }
 
+    */
     void guardarPartida() throws IOException {
         // Incrementar las partidas guardadas para asegurar que hay mas de una cada vez que guardamos
         saveCounter++;
@@ -415,7 +343,9 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         // Remove the key listener temporarily to prevent duplicated key events
         removeKeyListener(this);
         
-        try (FileWriter writer = new FileWriter(fileName)) {
+        try (FileOutputStream output = new FileOutputStream(fileName)) {
+            mazeState.toProperties().store(output, "Laberinto save");
+/*
             // Guardar posicion del jugado, puntuacion y la generación del enemigo
             writer.write(posX + "\n");
             writer.write(posY + "\n");
@@ -433,6 +363,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
             // Guardar posicion del enemigo
             writer.write(enemigo.getRow() + "\n");
             writer.write(enemigo.getColumn() + "\n");
+*/
         }
     
         // Re-add the key listener after saving the game
@@ -444,39 +375,23 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
     
     void recuperarPartida(File file) throws IOException {
-    removeKeyListener(this);
-    try (Scanner scanner = new Scanner(file)) {
-        posX = scanner.nextInt();
-        posY = scanner.nextInt();
-        puntuacion = scanner.nextInt();
-        enemyRandomSeed = scanner.nextLong(); // Load the random seed
-
-        // Recuperar el estado actual del laberinto
-        for (int i = 0; i < laberinto.length; i++) {
-            for (int j = 0; j < laberinto[i].length; j++) {
-                laberinto[i][j] = scanner.nextInt();
-            }
+        removeKeyListener(this);
+        try (FileInputStream input = new FileInputStream(file)) {
+            Properties properties = new Properties();
+            properties.load(input);
+            mazeState.load(properties);
+            syncLegacyFieldsFromState();
+            addKeyListener(this);
         }
-
-        // Restaurar la posicion del enemigo
-        int enemyX = scanner.nextInt();
-        int enemyY = scanner.nextInt();
-        enemigo.setPosition(enemyX, enemyY);
-
-        addKeyListener(this);
+        requestFocusInWindow();
+        repaint();
     }
-
-    // After loading the game, update the positions of player and enemy, and repaint the panel
-    recogerLetra(); // Check if player collects any letter after loading the game
-    requestFocusInWindow();
-    repaint();
-}
 
     
     
 
     public int getPuntuacion() {
-        return puntuacion;
+        return mazeState.getScore();
     }
 
         @Override
@@ -490,10 +405,14 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         int offsetY = (int) ((getHeight() - BASE_HEIGHT * scale) / 2);
         g2.translate(offsetX, offsetY);
         g2.scale(scale, scale);
-        drawScene(g2);
+        mazeRenderer.draw(g2, mazeState, BASE_WIDTH, BASE_HEIGHT);
+        if (menuOpen) {
+            drawMenuOverlay(g2);
+        }
         g2.dispose();
     }
 
+    /*
     private void drawScene(Graphics2D g) {
         g.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
     
@@ -591,6 +510,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
             }
         }
     }
+    */
     private void cargarSiguienteLaberinto() {
         if (enemyTimer != null) {
             enemyTimer.stop();
@@ -616,10 +536,10 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
     private void finishLoadingNextMaze() {
-        posX = 0;
-        posY = 0;
+        mazeState.generateLevel(nivelActual);
+        syncLegacyFieldsFromState();
         isFightingGameStarted = false;
-    
+/*
         if (nivelActual <= 5) {
             switch (nivelActual) {
                 case 2:
@@ -651,6 +571,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         colocarEnemigoAleatorio();
     
         colocarLetrasAleatorias();
+*/
         if (enemyTimer != null) {
             enemyTimer.start();
         }
@@ -677,24 +598,8 @@ public class LaberintoPanel extends JPanel implements KeyListener {
             return;
         }
     
-        if (key == KeyEvent.VK_LEFT && posY > 0 && laberinto[posX][posY - 1] != 0) {
-            posY--;
-            jumpDirection = -1; 
-        } else if (key == KeyEvent.VK_RIGHT && posY < laberinto[0].length - 1 && laberinto[posX][posY + 1] != 0) {
-            posY++;
-            jumpDirection = 1; 
-        } else if (key == KeyEvent.VK_UP && posX > 0 && laberinto[posX - 1][posY] != 0) {
-            posX--;
-            jumpDirection = 0; 
-        } else if (key == KeyEvent.VK_DOWN && posX < laberinto.length - 1 && laberinto[posX + 1][posY] != 0) {
-            posX++;
-            jumpDirection = 0; 
-        } else if (nivelActual > 5 && key == KeyEvent.VK_SPACE && jumpDirection != 0) {
-            
-            jump();
-        }
-    
-        recogerLetra();
+        mazeController.handleKey(key);
+        syncLegacyFieldsFromState();
         repaint();
     }
     public static void startGame() {
@@ -709,6 +614,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         });
     }
 
+/*
 private void jump() {
     System.out.println("Jumping");
 
@@ -731,6 +637,7 @@ private void jump() {
     }
 }
 
+*/
     private void toggleMenu() {
         if (inCombat) {
             return;
@@ -1106,32 +1013,14 @@ private void jump() {
     }
 
     public void loadGame(File selectedFile) throws IOException {
-        // Remove the key listener temporarily to prevent duplicated key events
         removeKeyListener(this);
-        
-        try (Scanner scanner = new Scanner(selectedFile)) {
-            posX = scanner.nextInt();
-            posY = scanner.nextInt();
-            puntuacion = scanner.nextInt();
-            enemyRandomSeed = scanner.nextLong(); // Load the random seed
-    
-            // Recuperar el estado actual del laberinto
-            for (int i = 0; i < laberinto.length; i++) {
-                for (int j = 0; j < laberinto[i].length; j++) {
-                    laberinto[i][j] = scanner.nextInt();
-                }
-            }
-    
-            // Restaurar la posicion del enemigo
-            int enemyX = scanner.nextInt();
-            int enemyY = scanner.nextInt();
-            enemigo.setPosition(enemyX, enemyY);
-    
+        try (FileInputStream input = new FileInputStream(selectedFile)) {
+            Properties properties = new Properties();
+            properties.load(input);
+            mazeState.load(properties);
+            syncLegacyFieldsFromState();
             addKeyListener(this);
         }
-    
-        // After loading the game, update the positions of player and enemy, and repaint the panel
-        recogerLetra(); // Check if player collects any letter after loading the game
         requestFocusInWindow();
         repaint();
     }
