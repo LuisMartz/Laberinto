@@ -9,19 +9,7 @@ import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.FileOutputStream;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.Scanner;
-import java.util.Properties;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -29,35 +17,20 @@ import java.awt.event.ActionListener;
 public class LaberintoPanel extends JPanel implements KeyListener {
     private static final int BASE_WIDTH = 800;
     private static final int BASE_HEIGHT = 600;
-    private static final Color MENU_BACKDROP = new Color(0, 0, 0, 175);
-    private static final Color MENU_PANEL = new Color(18, 18, 24, 238);
-    private static final Color MENU_PANEL_EDGE = new Color(230, 220, 165);
-    private static final Color MENU_TAB = new Color(35, 35, 48);
-    private static final Color MENU_TAB_ACTIVE = new Color(88, 56, 44);
-    private static final Color MENU_SELECTION = new Color(118, 56, 42);
-    private static final Color MENU_MUTED_TEXT = new Color(170, 170, 180);
     private final GameHost gameHost;
     private MazeState mazeState;
-    private MazeController mazeController;
+    private MazeScreenController screenController;
     private MazeRenderer mazeRenderer;
     private InventoryMenuRenderer inventoryMenuRenderer;
     private SkillTreeMenuRenderer skillTreeMenuRenderer;
+    private GameMenuController gameMenuController;
+    private GameMenuRenderer gameMenuRenderer;
     private SkillTreeProgression skillTreeProgression;
-    private LootFactory lootFactory;
-    private CombatEnemy pendingCombatEnemy;
+    private SaveGameService saveGameService;
     private String menuMessage = "";
-    private boolean isFightingGameStarted = false;
-    private boolean inCombat = false;
     private boolean menuOpen = false;
-    private int menuTabIndex = 0;
-    private int inventorySelection = 0;
-    private int statsSelection = 0;
-    private int skillCategoryIndex = 0;
-    private int skillSelectionIndex = 0;
     private Timer enemyTimer;
     private final PlayerData playerData;
-    private int nivelActual = 1;
-    private int saveCounter = 1; // Counter for generating unique save file names
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
@@ -143,32 +116,60 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         mazeRenderer = new MazeRenderer();
         inventoryMenuRenderer = new InventoryMenuRenderer();
         skillTreeMenuRenderer = new SkillTreeMenuRenderer();
+        gameMenuController = new GameMenuController();
+        gameMenuRenderer = new GameMenuRenderer(inventoryMenuRenderer, skillTreeMenuRenderer);
         skillTreeProgression = new SkillTreeProgression();
-        lootFactory = new LootFactory();
-        mazeController = new MazeController(mazeState, new MazeController.Listener() {
+        saveGameService = new SaveGameService();
+        screenController = new MazeScreenController(mazeState, playerData, new MazeScreenController.View() {
             @Override
-            public void onCombatRequested(CombatEnemy enemy) {
-                startCombat(enemy);
-            }
-
-            @Override
-            public void onLevelExitRequested(int nextLevel) {
-                nivelActual = nextLevel;
-                cargarSiguienteLaberinto();
-            }
-
-            @Override
-            public void onMazeChanged() {
+            public void repaintMaze() {
                 repaint();
             }
+
+            @Override
+            public void pauseEnemyMovement() {
+                if (enemyTimer != null) {
+                    enemyTimer.stop();
+                }
+            }
+
+            @Override
+            public void resumeEnemyMovement() {
+                if (enemyTimer != null) {
+                    enemyTimer.start();
+                }
+            }
+
+            @Override
+            public boolean showCombatPanel(PanelTriangulo combatPanel) {
+                return showCombatInHostOrFrame(combatPanel);
+            }
+
+            @Override
+            public void showMazePanel() {
+                showMazeInHostOrFrame();
+            }
+
+            @Override
+            public void showLevelLoading(String message, Runnable onComplete) {
+                showLevelLoadingInHostOrRun(message, onComplete);
+            }
+
+            @Override
+            public void showMessage(String message) {
+                JOptionPane.showMessageDialog(LaberintoPanel.this, message);
+            }
+
+            @Override
+            public void setMenuMessage(String message) {
+                menuMessage = message;
+            }
         });
-        nivelActual = mazeState.getLevel();
         // Schedule a task to move the enemy periodically
         enemyTimer = new Timer(500, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                mazeController.moveEnemy();
-                repaint();
+                screenController.moveEnemy();
             }
         });
         enemyTimer.start();
@@ -219,54 +220,19 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
     
     */
-    private void startCombat() {
-        startCombat(mazeState.getEnemy() == null ? CombatEnemy.forLevel(mazeState.getLevel(), false) : mazeState.getEnemy().getCombatEnemy());
-    }
-
-    private void syncLegacyFieldsFromState() {
-        nivelActual = mazeState.getLevel();
-    }
-
-    private void startCombat(CombatEnemy combatEnemy) {
-        if (isFightingGameStarted || inCombat) {
-            return;
-        }
-        pendingCombatEnemy = combatEnemy;
-        mazeState.savePlayerPosition();
-        inCombat = true;
-        isFightingGameStarted = true;
-        if (enemyTimer != null) {
-            enemyTimer.stop();
-        }
-        showCombatPanel();
-    }
-
-    private void showCombatPanel() {
-        PanelTriangulo combatPanel = new PanelTriangulo(playerData, pendingCombatEnemy);
-        combatPanel.setCombatEndListener(playerWon -> {
-            resumeFromCombat(playerWon);
-            if (gameHost != null) {
-                gameHost.showMaze(this);
-            } else {
-                showMazeInCurrentFrame();
-            }
-        });
+    private boolean showCombatInHostOrFrame(PanelTriangulo combatPanel) {
         if (gameHost != null) {
             gameHost.showCombat(combatPanel);
+            return true;
         } else {
-            showCombatInCurrentFrame(combatPanel);
+            return showCombatInCurrentFrame(combatPanel);
         }
     }
 
-    private void showCombatInCurrentFrame(PanelTriangulo combatPanel) {
+    private boolean showCombatInCurrentFrame(PanelTriangulo combatPanel) {
         Window window = SwingUtilities.getWindowAncestor(this);
         if (!(window instanceof JFrame)) {
-            inCombat = false;
-            isFightingGameStarted = false;
-            if (enemyTimer != null) {
-                enemyTimer.start();
-            }
-            return;
+            return false;
         }
         JFrame frame = (JFrame) window;
         frame.getContentPane().removeAll();
@@ -274,6 +240,15 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         frame.revalidate();
         frame.repaint();
         combatPanel.requestFocusInWindow();
+        return true;
+    }
+
+    private void showMazeInHostOrFrame() {
+        if (gameHost != null) {
+            gameHost.showMaze(this);
+            return;
+        }
+        showMazeInCurrentFrame();
     }
 
     private void showMazeInCurrentFrame() {
@@ -289,25 +264,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         requestFocusInWindow();
     }
 
-    private void resumeFromCombat(boolean playerWon) {
-        inCombat = false;
-        isFightingGameStarted = false;
-        mazeState.restorePlayerPosition();
-        if (playerWon) {
-            mazeState.defeatEnemy();
-            applyCombatLoot();
-        } else {
-            repositionEnemyAwayFromPlayer();
-        }
-        syncLegacyFieldsFromState();
-        if (enemyTimer != null) {
-            enemyTimer.start();
-        }
-        if (!playerWon) {
-            JOptionPane.showMessageDialog(this, "You lost the fight. Returning to the maze.");
-        }
-    }
-
     /*
     private void removeEnemyFromMaze() {
         int oldX = enemigo.getRow();
@@ -321,18 +277,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
     */
-    private void repositionEnemyAwayFromPlayer() {
-        Random random = new Random();
-        int x = 1;
-        int y = 1;
-        do {
-            x = random.nextInt(mazeState.getRows());
-            y = random.nextInt(mazeState.getColumns());
-        } while (mazeState.getTile(x, y) != TileType.FLOOR.getCode()
-                || Math.abs(x - mazeState.getPlayerRow()) + Math.abs(y - mazeState.getPlayerColumn()) < 4);
-        mazeState.moveEnemyTo(x, y);
-    }
-
     /*
     private void colocarLetrasAleatorias() {
         Random random = new Random();
@@ -351,62 +295,19 @@ public class LaberintoPanel extends JPanel implements KeyListener {
 
     */
     void guardarPartida() throws IOException {
-        // Incrementar las partidas guardadas para asegurar que hay mas de una cada vez que guardamos
-        saveCounter++;
-
-        // Generar archivo de guardado formato Año/Mes/Dia_HoraMinutosSegundos
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String fileName = "partida_" + timeStamp + ".txt";
-
-        // Remove the key listener temporarily to prevent duplicated key events
         removeKeyListener(this);
         
-        try (FileOutputStream output = new FileOutputStream(fileName)) {
-            Properties properties = mazeState.toProperties();
-            skillTreeProgression.save(properties);
-            properties.store(output, "Laberinto save");
-/*
-            // Guardar posicion del jugado, puntuacion y la generación del enemigo
-            writer.write(posX + "\n");
-            writer.write(posY + "\n");
-            writer.write(puntuacion + "\n");
-            writer.write(enemyRandomSeed + "\n"); // Save the random seed
-    
-            // Guardar el estado del laberinto actual
-            for (int i = 0; i < laberinto.length; i++) {
-                for (int j = 0; j < laberinto[i].length; j++) {
-                    writer.write(laberinto[i][j] + " ");
-                }
-                writer.write("\n");
-            }
-    
-            // Guardar posicion del enemigo
-            writer.write(enemigo.getRow() + "\n");
-            writer.write(enemigo.getColumn() + "\n");
-*/
+        try {
+            saveGameService.save(saveGameService.createTimestampedSaveFile(), mazeState, skillTreeProgression);
+        } finally {
+            addKeyListener(this);
+            requestFocusInWindow();
+            repaint();
         }
-    
-        // Re-add the key listener after saving the game
-        addKeyListener(this);
-        
-        // Ensure the panel has focus and repaint it
-        requestFocusInWindow();
-        repaint();
     }
     
     void recuperarPartida(File file) throws IOException {
-        removeKeyListener(this);
-        try (FileInputStream input = new FileInputStream(file)) {
-            Properties properties = new Properties();
-            properties.load(input);
-            mazeState.load(properties);
-            skillTreeProgression.load(properties);
-            skillTreeProgression.reapplyPurchasedStats(playerData);
-            syncLegacyFieldsFromState();
-            addKeyListener(this);
-        }
-        requestFocusInWindow();
-        repaint();
+        loadGame(file);
     }
 
     
@@ -429,7 +330,7 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         g2.scale(scale, scale);
         mazeRenderer.draw(g2, mazeState, BASE_WIDTH, BASE_HEIGHT);
         if (menuOpen) {
-            drawMenuOverlay(g2);
+            gameMenuRenderer.draw(g2, playerData, mazeState, skillTreeProgression, gameMenuController, menuMessage);
         }
         g2.dispose();
     }
@@ -533,71 +434,15 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         }
     }
     */
-    private void cargarSiguienteLaberinto() {
-        if (enemyTimer != null) {
-            enemyTimer.stop();
-        }
-
-        String message = getLevelLoadingMessage();
+    private void showLevelLoadingInHostOrRun(String message, Runnable onComplete) {
         if (gameHost != null) {
             gameHost.showTemporaryScreen(new LevelLoadingPanel(message), 2000, () -> {
-                finishLoadingNextMaze();
+                onComplete.run();
                 gameHost.showMaze(this);
             });
             return;
         }
-
-        finishLoadingNextMaze();
-    }
-
-    private String getLevelLoadingMessage() {
-        if (nivelActual <= 5) {
-            return "Mundo 1 - Nivel " + nivelActual;
-        }
-        return "Mundo 2 - Nivel " + (nivelActual - 5);
-    }
-
-    private void finishLoadingNextMaze() {
-        mazeState.generateLevel(nivelActual);
-        syncLegacyFieldsFromState();
-        isFightingGameStarted = false;
-/*
-        if (nivelActual <= 5) {
-            switch (nivelActual) {
-                case 2:
-                    setCurrentMaze(laberinto2);
-                    break;
-                case 3:
-                    setCurrentMaze(laberinto3);
-                    break;
-                case 4:
-                    setCurrentMaze(laberinto4);
-                    break;
-                case 5:
-                    setCurrentMaze(laberinto5);
-                    break;
-                default:
-                    
-                    break;
-            }
-        } else {
-             
-            if (nivelActual == 6) {
-                nivelActual = 1;
-                setCurrentMaze(laberinto6);
-            } else {
-                
-            }
-        }
-        enemyAlive = true;
-        colocarEnemigoAleatorio();
-    
-        colocarLetrasAleatorias();
-*/
-        if (enemyTimer != null) {
-            enemyTimer.start();
-        }
-        repaint();
+        onComplete.run();
     }
     
     
@@ -616,13 +461,11 @@ public class LaberintoPanel extends JPanel implements KeyListener {
             handleMenuKey(key);
             return;
         }
-        if (inCombat) {
+        if (screenController.isInCombat()) {
             return;
         }
     
-        mazeController.handleKey(key);
-        syncLegacyFieldsFromState();
-        repaint();
+        screenController.handleMazeKey(key);
     }
     public static void startGame() {
         SwingUtilities.invokeLater(() -> {
@@ -661,7 +504,7 @@ private void jump() {
 
 */
     private void toggleMenu() {
-        if (inCombat) {
+        if (screenController.isInCombat()) {
             return;
         }
         menuOpen = !menuOpen;
@@ -684,55 +527,43 @@ private void jump() {
             return;
         }
         if (key == KeyEvent.VK_LEFT) {
-            menuTabIndex = Math.max(0, menuTabIndex - 1);
-            resetMenuSelections();
+            gameMenuController.previousTab();
         } else if (key == KeyEvent.VK_RIGHT) {
-            menuTabIndex = Math.min(3, menuTabIndex + 1);
-            resetMenuSelections();
-        } else if (menuTabIndex == 0) {
+            gameMenuController.nextTab();
+        } else if (gameMenuController.getTabIndex() == 0) {
             if (key == KeyEvent.VK_UP) {
-                statsSelection = Math.max(0, statsSelection - 1);
+                gameMenuController.previousStat();
             } else if (key == KeyEvent.VK_DOWN) {
-                statsSelection = Math.min(5, statsSelection + 1);
+                gameMenuController.nextStat();
             } else if (key == KeyEvent.VK_ENTER) {
-                StatType statType = StatType.values()[statsSelection];
-                playerData.allocateStatPoint(statType);
+                playerData.allocateStatPoint(gameMenuController.getSelectedStat());
             }
-        } else if (menuTabIndex == 1) {
+        } else if (gameMenuController.getTabIndex() == 1) {
             if (key == KeyEvent.VK_UP) {
-                inventorySelection = Math.max(0, inventorySelection - 1);
+                gameMenuController.previousInventoryItem();
             } else if (key == KeyEvent.VK_DOWN) {
-                int maxIndex = Math.max(0, playerData.getInventoryItems().size() - 1);
-                inventorySelection = Math.min(maxIndex, inventorySelection + 1);
+                gameMenuController.nextInventoryItem(playerData.getInventoryItems().size());
             } else if (key == KeyEvent.VK_ENTER) {
-                playerData.equipItem(inventorySelection);
-                int maxIndex = Math.max(0, playerData.getInventoryItems().size() - 1);
-                inventorySelection = Math.min(inventorySelection, maxIndex);
+                playerData.equipItem(gameMenuController.getInventorySelection());
+                gameMenuController.setInventorySelection(gameMenuController.getInventorySelection(),
+                        playerData.getInventoryItems().size());
             }
-        } else if (menuTabIndex == 2) {
+        } else if (gameMenuController.getTabIndex() == 2) {
             if (key == KeyEvent.VK_UP) {
-                skillSelectionIndex = Math.max(0, skillSelectionIndex - 1);
+                gameMenuController.previousSkill();
             } else if (key == KeyEvent.VK_DOWN) {
-                int maxIndex = Math.max(0, playerData.getSkillTree().getSkillsByCategory(getCurrentSkillCategory()).size() - 1);
-                skillSelectionIndex = Math.min(maxIndex, skillSelectionIndex + 1);
+                gameMenuController.nextSkill(playerData);
             } else if (key == KeyEvent.VK_A) {
-                skillCategoryIndex = Math.max(0, skillCategoryIndex - 1);
-                clampSkillSelection();
+                gameMenuController.previousSkillCategory(playerData);
             } else if (key == KeyEvent.VK_D) {
-                skillCategoryIndex = Math.min(SkillCategory.values().length - 1, skillCategoryIndex + 1);
-                clampSkillSelection();
+                gameMenuController.nextSkillCategory(playerData);
             } else if (key == KeyEvent.VK_ENTER) {
-                PurchaseResult result = skillTreeProgression.purchaseSelected(playerData, mazeState, getCurrentSkillCategory(), skillSelectionIndex);
+                PurchaseResult result = skillTreeProgression.purchaseSelected(playerData, mazeState,
+                        gameMenuController.getCurrentSkillCategory(), gameMenuController.getSkillSelectionIndex());
                 menuMessage = result.getMessage();
             }
         }
         repaint();
-    }
-
-    private void resetMenuSelections() {
-        statsSelection = 0;
-        inventorySelection = 0;
-        skillSelectionIndex = 0;
     }
 
     private void handleMousePressed(MouseEvent event) {
@@ -745,58 +576,43 @@ private void jump() {
             return;
         }
 
-        boolean largeMenu = menuTabIndex == 1 || menuTabIndex == 2;
-        int boxWidth = largeMenu ? Math.min(740, BASE_WIDTH - 24) : Math.min(620, BASE_WIDTH - 40);
-        int boxHeight = largeMenu ? Math.min(520, BASE_HEIGHT - 34) : Math.min(420, BASE_HEIGHT - 40);
-        int boxX = (BASE_WIDTH - boxWidth) / 2;
-        int boxY = (BASE_HEIGHT - boxHeight) / 2;
-
-        if (point.y >= boxY && point.y <= boxY + 34 && point.x >= boxX && point.x <= boxX + boxWidth) {
-            int tabWidth = boxWidth / 4;
-            menuTabIndex = Math.max(0, Math.min(3, (point.x - boxX) / tabWidth));
-            resetMenuSelections();
+        Rectangle bounds = gameMenuRenderer.menuBounds(gameMenuController.getTabIndex());
+        int tabIndex = gameMenuRenderer.tabAt(point, bounds);
+        if (tabIndex >= 0) {
+            gameMenuController.setTabIndex(tabIndex);
             repaint();
             return;
         }
 
-        if (menuTabIndex == 1) {
-            int contentX = boxX + 20;
-            int contentY = boxY + 58;
+        if (gameMenuController.getTabIndex() == 1) {
+            Point content = gameMenuRenderer.contentOrigin(bounds);
+            int contentX = content.x;
+            int contentY = content.y;
+            int contentWidth = bounds.width - 40;
             EquipmentSlot slot = inventoryMenuRenderer.hitTestEquipmentSlot(point.x, point.y, contentX, contentY - 12,
-                    boxWidth - 40, 400);
+                    contentWidth, GameMenuRenderer.CONTENT_HEIGHT);
             if (slot != null) {
                 if (playerData.unequipItem(slot)) {
-                    inventorySelection = Math.max(0, playerData.getInventoryItems().size() - 1);
+                    gameMenuController.setInventorySelection(playerData.getInventoryItems().size() - 1,
+                            playerData.getInventoryItems().size());
                     menuMessage = slot.name() + " unequipped.";
                 }
                 repaint();
                 return;
             }
             int index = inventoryMenuRenderer.hitTestBagIndex(point.x, point.y, contentX, contentY - 12,
-                    boxWidth - 40, 400, playerData.getInventoryItems().size());
+                    contentWidth, GameMenuRenderer.CONTENT_HEIGHT, playerData.getInventoryItems().size());
             if (index >= 0) {
-                if (index == inventorySelection || event.getClickCount() > 1) {
+                if (index == gameMenuController.getInventorySelection() || event.getClickCount() > 1) {
                     playerData.equipItem(index);
-                    inventorySelection = Math.min(inventorySelection, Math.max(0, playerData.getInventoryItems().size() - 1));
+                    gameMenuController.setInventorySelection(gameMenuController.getInventorySelection(),
+                            playerData.getInventoryItems().size());
                 } else {
-                    inventorySelection = index;
+                    gameMenuController.setInventorySelection(index, playerData.getInventoryItems().size());
                 }
                 repaint();
             }
         }
-    }
-
-    private void applyCombatLoot() {
-        CombatEnemy enemy = pendingCombatEnemy == null ? CombatEnemy.forLevel(mazeState.getLevel(), false) : pendingCombatEnemy;
-        LootDrop drop = lootFactory.rollForEnemy(enemy, mazeState.getLevel(), false);
-        mazeState.addScore(drop.getCoins());
-        StringBuilder message = new StringBuilder("Loot: +").append(drop.getCoins()).append(" coins");
-        if (drop.hasItem()) {
-            playerData.addItem(drop.getItem());
-            message.append(", ").append(drop.getRarity().getLabel()).append(" item: ").append(drop.getItem().getName());
-        }
-        menuMessage = message.toString();
-        JOptionPane.showMessageDialog(this, message.toString());
     }
 
     private Point toBasePoint(int screenX, int screenY) {
@@ -813,189 +629,6 @@ private void jump() {
         return new Point(x, y);
     }
 
-    private void clampSkillSelection() {
-        int maxIndex = Math.max(0, playerData.getSkillTree().getSkillsByCategory(getCurrentSkillCategory()).size() - 1);
-        skillSelectionIndex = Math.min(skillSelectionIndex, maxIndex);
-    }
-
-    private SkillCategory getCurrentSkillCategory() {
-        SkillCategory[] categories = SkillCategory.values();
-        if (skillCategoryIndex < 0 || skillCategoryIndex >= categories.length) {
-            return SkillCategory.ATTACK;
-        }
-        return categories[skillCategoryIndex];
-    }
-
-    private Skill getSelectedSkill() {
-        List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(getCurrentSkillCategory());
-        if (skills.isEmpty()) {
-            return null;
-        }
-        if (skillSelectionIndex < 0 || skillSelectionIndex >= skills.size()) {
-            return skills.get(0);
-        }
-        return skills.get(skillSelectionIndex);
-    }
-
-    private void drawMenuOverlay(Graphics g) {
-        Graphics2D g2 = (Graphics2D) g.create();
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2.setColor(MENU_BACKDROP);
-        g2.fillRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
-
-        boolean largeMenu = menuTabIndex == 1 || menuTabIndex == 2;
-        int boxWidth = largeMenu ? Math.min(740, BASE_WIDTH - 24) : Math.min(620, BASE_WIDTH - 40);
-        int boxHeight = largeMenu ? Math.min(520, BASE_HEIGHT - 34) : Math.min(420, BASE_HEIGHT - 40);
-        int boxX = (BASE_WIDTH - boxWidth) / 2;
-        int boxY = (BASE_HEIGHT - boxHeight) / 2;
-
-        g2.setColor(MENU_PANEL);
-        g2.fillRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
-        g2.setColor(MENU_PANEL_EDGE);
-        g2.setStroke(new BasicStroke(2));
-        g2.drawRoundRect(boxX, boxY, boxWidth, boxHeight, 8, 8);
-        g2.setStroke(new BasicStroke(1));
-
-        String[] tabs = {"Stats", "Inventory", "Skills", "Floor"};
-        int tabWidth = boxWidth / tabs.length;
-        g2.setFont(new Font("Dialog", Font.BOLD, 14));
-        for (int i = 0; i < tabs.length; i++) {
-            int tabX = boxX + i * tabWidth;
-            g2.setColor(i == menuTabIndex ? MENU_TAB_ACTIVE : MENU_TAB);
-            g2.fillRect(tabX, boxY, tabWidth, 34);
-            g2.setColor(MENU_PANEL_EDGE);
-            g2.drawRect(tabX, boxY, tabWidth, 34);
-            g2.setColor(Color.WHITE);
-            g2.drawString(tabs[i], tabX + 14, boxY + 22);
-        }
-
-        int contentX = boxX + 20;
-        int contentY = boxY + 58;
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
-        if (menuTabIndex == 0) {
-            drawStatsMenu(g2, contentX, contentY);
-        } else if (menuTabIndex == 1) {
-            drawInventoryMenu(g2, contentX, contentY, boxWidth - 40);
-        } else if (menuTabIndex == 2) {
-            drawSkillsMenu(g2, contentX, contentY, boxWidth - 40);
-        } else {
-            drawLevelMenu(g2, contentX, contentY);
-        }
-
-        g2.dispose();
-    }
-
-    private void drawStatsMenu(Graphics2D g2, int x, int y) {
-        g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Dialog", Font.BOLD, 16));
-        g2.drawString("Base / Total", x, y);
-        g2.drawString("Stat points: " + playerData.getStatPoints(), x + 210, y);
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
-        int line = y + 20;
-        String[] labels = {"STR", "DEF", "AGI", "LCK", "MIN", "CON"};
-        int[] base = {
-            playerData.getBaseStr(),
-            playerData.getBaseDef(),
-            playerData.getBaseAgi(),
-            playerData.getBaseLuck(),
-            playerData.getBaseMind(),
-            playerData.getBaseCon()
-        };
-        int[] total = {
-            playerData.getTotalStr(),
-            playerData.getTotalDef(),
-            playerData.getTotalAgi(),
-            playerData.getTotalLuck(),
-            playerData.getTotalMind(),
-            playerData.getTotalCon()
-        };
-        for (int i = 0; i < labels.length; i++) {
-            if (statsSelection == i) {
-                g2.setColor(MENU_SELECTION);
-                g2.fillRoundRect(x - 8, line - 14, 180, 19, 6, 6);
-            }
-            g2.setColor(Color.WHITE);
-            g2.drawString(labels[i] + ": " + base[i] + " / " + total[i], x, line);
-            drawMiniBar(g2, x + 86, line - 10, 70, total[i], 20);
-            line += 22;
-        }
-        g2.setColor(Color.WHITE);
-        g2.drawString("HP: " + playerData.getCurrentHp() + " / " + playerData.getMaxHp(), x, line);
-        line += 20;
-        g2.drawString("MP: " + playerData.getCurrentMp() + " / " + playerData.getMaxMp(), x, line);
-        line += 20;
-        g2.setColor(MENU_MUTED_TEXT);
-        g2.drawString("Enter: Spend point   M/Esc: Close", x, line);
-
-        line = y + 20;
-        int equipmentX = x + 320;
-        g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Dialog", Font.BOLD, 16));
-        g2.drawString("Equipped", equipmentX, y);
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
-        for (EquipmentSlot slot : EquipmentSlot.values()) {
-            Item item = playerData.getEquippedItems().get(slot);
-            String name = item == null ? "-" : item.getName();
-            g2.setColor(MENU_MUTED_TEXT);
-            g2.drawString(slot.name(), equipmentX, line);
-            g2.setColor(Color.WHITE);
-            g2.drawString(name, equipmentX + 105, line);
-            line += 18;
-        }
-    }
-
-    private void drawMiniBar(Graphics2D g2, int x, int y, int width, int value, int maxValue) {
-        g2.setColor(new Color(48, 48, 60));
-        g2.fillRect(x, y, width, 8);
-        g2.setColor(new Color(210, 175, 78));
-        int fill = Math.min(width, Math.max(2, value * width / Math.max(1, maxValue)));
-        g2.fillRect(x, y, fill, 8);
-        g2.setColor(new Color(0, 0, 0, 130));
-        g2.drawRect(x, y, width, 8);
-    }
-
-    private void drawSkillsMenu(Graphics2D g2, int x, int y, int width) {
-        skillTreeMenuRenderer.draw(g2, playerData, mazeState, skillTreeProgression, x, y - 12, width, 400,
-                skillCategoryIndex, skillSelectionIndex, menuMessage);
-    }
-
-    private String formatSkillCategory(SkillCategory category) {
-        switch (category) {
-            case ATTACK:
-                return "Attack Skills";
-            case DEFENSE:
-                return "Defense Skills";
-            case OFFENSIVE_MAGIC:
-                return "Offensive Magic";
-            case DEFENSIVE_MAGIC:
-                return "Defensive Magic";
-            case SUPPORT_MAGIC:
-                return "Support Magic";
-            default:
-                return "Skills";
-        }
-    }
-
-    private void drawLevelMenu(Graphics2D g2, int x, int y) {
-        g2.drawString("Level: " + playerData.getLevel(), x, y);
-        g2.drawString("XP: " + playerData.getCurrentXp() + " / " + playerData.getNextLevelXp(), x, y + 20);
-        g2.drawString("Stat points: " + playerData.getStatPoints(), x, y + 40);
-        g2.drawString("Skill points: " + playerData.getSkillPoints(), x, y + 60);
-        g2.drawString("Win battles to gain XP.", x, y + 90);
-    }
-
-    private void drawInventoryMenu(Graphics2D g2, int x, int y, int width) {
-        inventoryMenuRenderer.draw(g2, playerData, x, y - 12, width, 400, inventorySelection);
-        if (menuMessage != null && !menuMessage.isEmpty()) {
-            g2.setColor(Color.WHITE);
-            g2.setFont(new Font("Dialog", Font.PLAIN, 11));
-            g2.drawString(menuMessage, x + 12, y + 390);
-        }
-    }
-
-
-
     @Override
     public void keyTyped(KeyEvent e) {
     }
@@ -1006,17 +639,15 @@ private void jump() {
 
     public void loadGame(File selectedFile) throws IOException {
         removeKeyListener(this);
-        try (FileInputStream input = new FileInputStream(selectedFile)) {
-            Properties properties = new Properties();
-            properties.load(input);
-            mazeState.load(properties);
-            skillTreeProgression.load(properties);
+        try {
+            saveGameService.load(selectedFile, mazeState, skillTreeProgression);
             skillTreeProgression.reapplyPurchasedStats(playerData);
-            syncLegacyFieldsFromState();
+            screenController.syncFromState();
+        } finally {
             addKeyListener(this);
+            requestFocusInWindow();
+            repaint();
         }
-        requestFocusInWindow();
-        repaint();
     }
 }
 

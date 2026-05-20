@@ -1,0 +1,11 @@
+out/
+*.class
+partida_*.txt
+
+# OS / IDE noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml
+
