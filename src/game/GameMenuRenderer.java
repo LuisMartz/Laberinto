@@ -110,9 +110,11 @@ class GameMenuRenderer {
         g2.drawString("Stat points: " + playerData.getStatPoints(), x + 210, y);
         g2.setFont(new Font("Dialog", Font.PLAIN, 13));
         int line = y + 20;
-        String[] labels = {"STR", "DEF", "AGI", "LCK", "MIN", "CON"};
+        String[] labels = {"STR", "DEX", "INT", "DEF", "AGI", "LCK", "MIN", "CON"};
         int[] base = {
             playerData.getBaseStr(),
+            playerData.getBaseDex(),
+            playerData.getBaseInt(),
             playerData.getBaseDef(),
             playerData.getBaseAgi(),
             playerData.getBaseLuck(),
@@ -121,6 +123,8 @@ class GameMenuRenderer {
         };
         int[] total = {
             playerData.getTotalStr(),
+            playerData.getTotalDex(),
+            playerData.getTotalInt(),
             playerData.getTotalDef(),
             playerData.getTotalAgi(),
             playerData.getTotalLuck(),

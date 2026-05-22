@@ -51,6 +51,22 @@ class Inventory {
         return total;
     }
 
+    public int getBonusDex() {
+        int total = 0;
+        for (Item item : equipped.values()) {
+            total += item.getDexBonus();
+        }
+        return total;
+    }
+
+    public int getBonusInt() {
+        int total = 0;
+        for (Item item : equipped.values()) {
+            total += item.getIntBonus();
+        }
+        return total;
+    }
+
     public int getBonusDef() {
         int total = 0;
         for (Item item : equipped.values()) {
@@ -89,6 +105,14 @@ class Inventory {
             total += item.getMpBonus();
         }
         return total;
+    }
+
+    public WeaponScaling getWeaponScaling() {
+        Item weapon = equipped.get(EquipmentSlot.WEAPON);
+        if (weapon == null) {
+            weapon = equipped.get(EquipmentSlot.RIGHT_HAND);
+        }
+        return weapon == null ? WeaponScaling.STR : weapon.getWeaponScaling();
     }
 }
 

@@ -52,9 +52,13 @@ public class LootFactory {
     private Item createItem(int level, ItemRarity rarity) {
         EquipmentSlot slot = randomSlot();
         int power = rarity.getPower() + Math.max(0, level / 2);
-        String name = rarity.getLabel() + " " + randomPart(PREFIXES) + " " + randomPart(MATERIALS) + " " + baseName(slot) + " " + randomPart(SUFFIXES);
+        WeaponScaling weaponScaling = randomWeaponScaling(slot);
+        String name = rarity.getLabel() + " " + randomPart(PREFIXES) + " " + randomPart(MATERIALS) + " "
+                + baseName(slot, weaponScaling) + " " + randomPart(SUFFIXES);
 
         int str = 0;
+        int dex = 0;
+        int intel = 0;
         int def = 0;
         int agi = 0;
         int luck = 0;
@@ -64,7 +68,12 @@ public class LootFactory {
         switch (slot) {
             case WEAPON:
             case RIGHT_HAND:
-                str = power + random.nextInt(2);
+                if (weaponScaling == WeaponScaling.STR) {
+                    str = power + random.nextInt(2);
+                } else {
+                    dex = power + random.nextInt(2);
+                    agi = rarity.getPower() >= 2 ? 1 : 0;
+                }
                 luck = rarity.getPower() >= 3 ? 1 : 0;
                 break;
             case ARMOR:
@@ -78,7 +87,11 @@ public class LootFactory {
                 break;
             case RING:
             case ACCESSORY:
-                luck = power;
+                if (random.nextBoolean()) {
+                    luck = power;
+                } else {
+                    intel = power;
+                }
                 mp = power * 4;
                 break;
             case LEFT_HAND:
@@ -94,12 +107,14 @@ public class LootFactory {
 
         if (rarity == ItemRarity.EPIC || rarity == ItemRarity.LEGENDARY) {
             str += random.nextBoolean() ? 1 : 0;
+            dex += random.nextBoolean() ? 1 : 0;
+            intel += random.nextBoolean() ? 1 : 0;
             def += random.nextBoolean() ? 1 : 0;
             agi += random.nextBoolean() ? 1 : 0;
             hp += rarity.getPower() * 3;
         }
 
-        return new Item(name, slot, str, def, agi, luck, hp, mp);
+        return new Item(name, slot, str, dex, intel, def, agi, luck, hp, mp, weaponScaling);
     }
 
     private EquipmentSlot randomSlot() {
@@ -111,10 +126,17 @@ public class LootFactory {
         return parts[random.nextInt(parts.length)];
     }
 
-    private String baseName(EquipmentSlot slot) {
+    private WeaponScaling randomWeaponScaling(EquipmentSlot slot) {
+        if (slot == EquipmentSlot.WEAPON || slot == EquipmentSlot.RIGHT_HAND) {
+            return random.nextBoolean() ? WeaponScaling.STR : WeaponScaling.DEX;
+        }
+        return WeaponScaling.NONE;
+    }
+
+    private String baseName(EquipmentSlot slot, WeaponScaling weaponScaling) {
         switch (slot) {
             case WEAPON:
-                return "Blade";
+                return weaponScaling == WeaponScaling.DEX ? "Dagger" : "Blade";
             case ARMOR:
                 return "Armor";
             case BOOTS:
@@ -125,7 +147,7 @@ public class LootFactory {
                 return "Ring";
             case LEFT_HAND:
             case RIGHT_HAND:
-                return "Gauntlet";
+                return weaponScaling == WeaponScaling.DEX ? "Dagger" : "Gauntlet";
             case GEAR:
                 return "Charm";
             case ACCESSORY:

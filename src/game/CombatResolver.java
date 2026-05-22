@@ -27,7 +27,8 @@ public class CombatResolver {
 
     public CombatResult resolveMagicAttack(Combatant attacker, Combatant defender, Skill skill) {
         boolean critical = rollCrit(attacker.getLuck());
-        int damage = Math.max(1, skill.getPower() + attacker.getLuck() - defender.getDef() / 2);
+        int damage = Math.max(1, skill.getPower() + attacker.getInt() * 2 + attacker.getLuck() / 2
+                - defender.getInt() - defender.getDef() / 3);
         if (critical) {
             damage = (int) Math.round(damage * 1.5);
         }

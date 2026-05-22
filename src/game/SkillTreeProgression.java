@@ -112,18 +112,22 @@ public class SkillTreeProgression {
     public StatReward statReward(SkillCategory category, int index) {
         switch (category) {
             case ATTACK:
-                return new StatReward(index % 2 == 0 ? "STR" : "LCK", index % 2 == 0 ? StatType.STR : StatType.LUCK, 1, 0, 0);
+                return index % 3 == 0
+                        ? new StatReward("STR", StatType.STR, 1, 0, 0)
+                        : (index % 3 == 1
+                        ? new StatReward("DEX", StatType.DEX, 1, 0, 0)
+                        : new StatReward("LCK", StatType.LUCK, 1, 0, 0));
             case DEFENSE:
                 return index % 2 == 0
                         ? new StatReward("DEF", StatType.DEF, 1, 0, 0)
                         : new StatReward("HP", null, 0, 10, 0);
             case OFFENSIVE_MAGIC:
                 return index % 2 == 0
-                        ? new StatReward("MP", null, 0, 0, 8)
-                        : new StatReward("LCK", StatType.LUCK, 1, 0, 0);
+                        ? new StatReward("INT", StatType.INT, 1, 0, 0)
+                        : new StatReward("MP", null, 0, 0, 8);
             case DEFENSIVE_MAGIC:
                 return index % 2 == 0
-                        ? new StatReward("DEF", StatType.DEF, 1, 0, 0)
+                        ? new StatReward("INT", StatType.INT, 1, 0, 0)
                         : new StatReward("MP", null, 0, 0, 8);
             case SUPPORT_MAGIC:
                 return index % 2 == 0

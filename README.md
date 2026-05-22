@@ -47,6 +47,13 @@ El proyecto mantiene por ahora el paquete `game` para evitar un movimiento masiv
 - `MazeScreenController.java` coordina exploracion, transiciones de combate, cambio de nivel y loot. `LaberintoPanel` conserva responsabilidades Swing como timers, foco, mensajes y cambio de paneles.
 - Las clases de combate nuevas no deben importar Swing, AWT, `Graphics`, `KeyEvent` ni `JOptionPane`.
 
+## Stats y armas
+
+- `STR` escala armas pesadas como espadas.
+- `DEX` escala armas ligeras como dagas.
+- `INT` aumenta el dano de hechizos y reduce el dano magico recibido.
+- `MIN` se mantiene como stat de reserva/mana.
+
 ## Guardado pendiente
 
 El guardado actual ya usa propiedades en `LaberintoPanel`, pero todavia necesita consolidarse en una capa de progreso completa. Datos a revisar antes de ampliar mundos y areas:

@@ -12,6 +12,8 @@ import java.util.HashSet;
 
 public class PlayerData {
     private int baseStr = 5;
+    private int baseDex = 5;
+    private int baseInt = 5;
     private int baseDef = 5;
     private int baseAgi = 5;
     private int baseLuck = 5;
@@ -20,6 +22,8 @@ public class PlayerData {
     private int baseHp = 100;
     private int baseMp = 50;
     private int treeBonusStr = 0;
+    private int treeBonusDex = 0;
+    private int treeBonusInt = 0;
     private int treeBonusDef = 0;
     private int treeBonusAgi = 0;
     private int treeBonusLuck = 0;
@@ -46,7 +50,8 @@ public class PlayerData {
     }
 
     private void seedStarterItems() {
-        inventory.addItem(new Item("Rusty Sword", EquipmentSlot.WEAPON, 2, 0, 0, 0, 0, 0));
+        inventory.addItem(new Item("Rusty Sword", EquipmentSlot.WEAPON, 2, 0, 0, 0, 0, 0, 0, 0, WeaponScaling.STR));
+        inventory.addItem(new Item("Training Dagger", EquipmentSlot.RIGHT_HAND, 0, 2, 0, 0, 1, 0, 0, 0, WeaponScaling.DEX));
         inventory.addItem(new Item("Leather Armor", EquipmentSlot.ARMOR, 0, 2, 0, 0, 10, 0));
         inventory.addItem(new Item("Traveler Boots", EquipmentSlot.BOOTS, 0, 0, 1, 0, 0, 0));
         inventory.addItem(new Item("Lucky Ring", EquipmentSlot.RING, 0, 0, 0, 1, 0, 0));
@@ -100,6 +105,12 @@ public class PlayerData {
             case STR:
                 baseStr++;
                 break;
+            case DEX:
+                baseDex++;
+                break;
+            case INT:
+                baseInt++;
+                break;
             case DEF:
                 baseDef++;
                 break;
@@ -143,6 +154,12 @@ public class PlayerData {
             case STR:
                 treeBonusStr += amount;
                 break;
+            case DEX:
+                treeBonusDex += amount;
+                break;
+            case INT:
+                treeBonusInt += amount;
+                break;
             case DEF:
                 treeBonusDef += amount;
                 break;
@@ -167,6 +184,8 @@ public class PlayerData {
 
     public void resetTreeBonuses() {
         treeBonusStr = 0;
+        treeBonusDex = 0;
+        treeBonusInt = 0;
         treeBonusDef = 0;
         treeBonusAgi = 0;
         treeBonusLuck = 0;
@@ -202,6 +221,14 @@ public class PlayerData {
         return baseStr;
     }
 
+    public int getBaseDex() {
+        return baseDex;
+    }
+
+    public int getBaseInt() {
+        return baseInt;
+    }
+
     public int getBaseDef() {
         return baseDef;
     }
@@ -224,6 +251,14 @@ public class PlayerData {
 
     public int getTotalStr() {
         return baseStr + treeBonusStr + inventory.getBonusStr() + skillTree.getPassiveBonusStr();
+    }
+
+    public int getTotalDex() {
+        return baseDex + treeBonusDex + inventory.getBonusDex();
+    }
+
+    public int getTotalInt() {
+        return baseInt + treeBonusInt + inventory.getBonusInt();
     }
 
     public int getTotalDef() {
@@ -252,6 +287,10 @@ public class PlayerData {
 
     public int getMaxMp() {
         return baseMp + getTotalMind() * 5 + treeBonusMp + inventory.getBonusMp() + skillTree.getPassiveBonusMp();
+    }
+
+    public int getWeaponAttackStat() {
+        return inventory.getWeaponScaling() == WeaponScaling.DEX ? getTotalDex() : getTotalStr();
     }
 
     public int getCurrentHp() {

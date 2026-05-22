@@ -7,6 +7,8 @@ public class Combatant {
     private final int maxHp;
     private final int maxMp;
     private final int str;
+    private final int dex;
+    private final int intel;
     private final int def;
     private final int agi;
     private final int luck;
@@ -16,12 +18,19 @@ public class Combatant {
 
     public Combatant(String id, String name, boolean playerControlled, int maxHp, int currentHp, int maxMp, int currentMp,
                      int str, int def, int agi, int luck) {
+        this(id, name, playerControlled, maxHp, currentHp, maxMp, currentMp, str, 0, 0, def, agi, luck);
+    }
+
+    public Combatant(String id, String name, boolean playerControlled, int maxHp, int currentHp, int maxMp, int currentMp,
+                     int str, int dex, int intel, int def, int agi, int luck) {
         this.id = id;
         this.name = name;
         this.playerControlled = playerControlled;
         this.maxHp = Math.max(1, maxHp);
         this.maxMp = Math.max(0, maxMp);
         this.str = str;
+        this.dex = dex;
+        this.intel = intel;
         this.def = def;
         this.agi = agi;
         this.luck = luck;
@@ -31,13 +40,14 @@ public class Combatant {
 
     public static Combatant fromPlayerData(PlayerData playerData) {
         return new Combatant("player", "Player", true, playerData.getMaxHp(), playerData.getCurrentHp(),
-                playerData.getMaxMp(), playerData.getCurrentMp(), playerData.getTotalStr(), playerData.getTotalDef(),
+                playerData.getMaxMp(), playerData.getCurrentMp(), playerData.getWeaponAttackStat(),
+                playerData.getTotalDex(), playerData.getTotalInt(), playerData.getTotalDef(),
                 playerData.getTotalAgi(), playerData.getTotalLuck());
     }
 
     public static Combatant fromEnemy(CombatEnemy enemy) {
         return new Combatant("enemy", enemy.getName(), false, enemy.getMaxHp(), enemy.getMaxHp(), 0, 0,
-                enemy.getStr(), enemy.getDef(), enemy.getAgi(), enemy.getLuck());
+                enemy.getStr(), enemy.getAgi(), enemy.getInt(), enemy.getDef(), enemy.getAgi(), enemy.getLuck());
     }
 
     public String getId() {
@@ -70,6 +80,14 @@ public class Combatant {
 
     public int getStr() {
         return str;
+    }
+
+    public int getDex() {
+        return dex;
+    }
+
+    public int getInt() {
+        return intel;
     }
 
     public int getDef() {
