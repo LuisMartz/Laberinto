@@ -196,16 +196,14 @@ public class SkillTreeProgression {
         Map<String, Point> positions = new HashMap<>();
         positions.put(START_NODE_ID, new Point(0, 0));
         for (SkillCategory category : SkillCategory.values()) {
-            BranchShape shape = branchShape(category);
-            positions.put(categoryNodeId(category), new Point(shape.anchorX, shape.anchorY));
-            Point previousSkill = new Point(shape.anchorX, shape.anchorY);
+            List<Point> route = routeFor(category);
+            positions.put(categoryNodeId(category), route.get(0));
             List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
             for (int i = 0; i < skills.size(); i++) {
-                Point skillPoint = pointOnBranch(shape, i);
-                Point statPoint = new Point((previousSkill.x + skillPoint.x) / 2, (previousSkill.y + skillPoint.y) / 2);
-                positions.put(statNodeId(category, i), statPoint);
-                positions.put(skillNodeId(skills.get(i)), skillPoint);
-                previousSkill = skillPoint;
+                int statRouteIndex = Math.min(route.size() - 1, i * 2 + 1);
+                int skillRouteIndex = Math.min(route.size() - 1, i * 2 + 2);
+                positions.put(statNodeId(category, i), route.get(statRouteIndex));
+                positions.put(skillNodeId(skills.get(i)), route.get(skillRouteIndex));
             }
         }
         return positions;
@@ -213,9 +211,12 @@ public class SkillTreeProgression {
 
     public Map<String, List<String>> buildGraph(PlayerData playerData) {
         Map<String, List<String>> graph = new HashMap<>();
+        connect(graph, START_NODE_ID, categoryNodeId(SkillCategory.ATTACK));
+        connect(graph, START_NODE_ID, categoryNodeId(SkillCategory.DEFENSE));
+        connect(graph, START_NODE_ID, categoryNodeId(SkillCategory.SUPPORT_MAGIC));
+
         for (SkillCategory category : SkillCategory.values()) {
             String categoryId = categoryNodeId(category);
-            connect(graph, START_NODE_ID, categoryId);
             String previous = categoryId;
             List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
             for (int i = 0; i < skills.size(); i++) {
@@ -231,9 +232,14 @@ public class SkillTreeProgression {
         for (int i = 0; i < categories.length; i++) {
             SkillCategory current = categories[i];
             SkillCategory next = categories[(i + 1) % categories.length];
-            connectMatchingIndex(graph, playerData, current, next, 2);
-            connectMatchingIndex(graph, playerData, current, next, 5);
+            connectCategoryNodes(graph, current, next);
+            connectMatchingIndex(graph, playerData, current, next, 1);
+            connectMatchingIndex(graph, playerData, current, next, 4);
         }
+        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.OFFENSIVE_MAGIC, 6);
+        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSE, SkillCategory.DEFENSIVE_MAGIC, 3);
+        connectMatchingIndex(graph, playerData, SkillCategory.SUPPORT_MAGIC, SkillCategory.DEFENSIVE_MAGIC, 5);
+        connectMatchingIndex(graph, playerData, SkillCategory.SUPPORT_MAGIC, SkillCategory.ATTACK, 2);
         return graph;
     }
 
@@ -277,17 +283,11 @@ public class SkillTreeProgression {
     public void reapplyPurchasedStats(PlayerData playerData) {
         playerData.resetTreeBonuses();
         for (String id : purchasedStatNodes) {
-            String[] parts = id.split(":");
-            if (parts.length != 2) {
+            NodeRef ref = parseProgressionNode(id);
+            if (ref == null) {
                 continue;
             }
-            try {
-                SkillCategory category = SkillCategory.valueOf(parts[0]);
-                int index = Integer.parseInt(parts[1]);
-                applyStatReward(playerData, category, index);
-            } catch (IllegalArgumentException ignored) {
-                // Ignore unknown saved nodes from older or edited save files.
-            }
+            applyStatReward(playerData, ref.category, ref.index);
         }
     }
 
@@ -371,35 +371,69 @@ public class SkillTreeProgression {
         }
     }
 
+    private void connectCategoryNodes(Map<String, List<String>> graph, SkillCategory first, SkillCategory second) {
+        connect(graph, categoryNodeId(first), categoryNodeId(second));
+    }
+
     private void connect(Map<String, List<String>> graph, String first, String second) {
         graph.computeIfAbsent(first, key -> new ArrayList<>()).add(second);
         graph.computeIfAbsent(second, key -> new ArrayList<>()).add(first);
     }
 
-    private Point pointOnBranch(BranchShape shape, int index) {
-        int step = index + 1;
-        int wave = ((index % 4) - 1) * 24;
-        int curl = (index / 3) * shape.curl;
-        int x = shape.anchorX + shape.dx * step + shape.px * wave + shape.px * curl;
-        int y = shape.anchorY + shape.dy * step + shape.py * wave + shape.py * curl;
-        return new Point(x, y);
-    }
-
-    private BranchShape branchShape(SkillCategory category) {
+    private List<Point> routeFor(SkillCategory category) {
+        int[][] route;
         switch (category) {
             case ATTACK:
-                return new BranchShape(0, -86, 0, -72, 1, 0, 18);
+                route = new int[][]{
+                    {-42, -20}, {-92, -20}, {-132, -62}, {-98, -106}, {-42, -106},
+                    {12, -136}, {74, -124}, {112, -76}, {86, -28}, {28, 10},
+                    {-20, 48}, {-74, 42}, {-118, 2}, {-154, -46}, {-196, -48},
+                    {-238, -8}, {-226, 48}, {-176, 76}, {-118, 72}, {-64, 96},
+                    {-8, 82}
+                };
+                break;
             case DEFENSE:
-                return new BranchShape(92, -24, 76, -8, 0, 1, 20);
+                route = new int[][]{
+                    {52, -6}, {106, -6}, {154, -38}, {208, -34}, {250, 8},
+                    {238, 62}, {184, 92}, {128, 74}, {98, 28}, {142, -18},
+                    {204, -76}, {270, -82}, {326, -42}, {340, 22}, {304, 76},
+                    {244, 112}, {182, 132}, {124, 116}, {70, 136}
+                };
+                break;
             case OFFENSIVE_MAGIC:
-                return new BranchShape(72, 76, 58, 54, -1, 1, -18);
+                route = new int[][]{
+                    {28, 76}, {76, 104}, {130, 102}, {174, 142}, {168, 202},
+                    {112, 238}, {50, 224}, {8, 176}, {24, 120}, {86, 70},
+                    {148, 34}, {210, 50}, {254, 100}, {252, 164}, {206, 218},
+                    {138, 268}, {58, 286}, {-10, 254}, {-52, 204}, {-38, 150},
+                    {18, 118}
+                };
+                break;
             case DEFENSIVE_MAGIC:
-                return new BranchShape(-72, 76, -58, 54, -1, -1, 18);
+                route = new int[][]{
+                    {-56, 76}, {-112, 102}, {-172, 90}, {-214, 136}, {-210, 198},
+                    {-158, 236}, {-94, 222}, {-52, 174}, {-72, 120}, {-138, 72},
+                    {-204, 38}, {-266, 56}, {-306, 112}, {-288, 174}, {-230, 220},
+                    {-158, 266}, {-78, 286}, {-10, 248}
+                };
+                break;
             case SUPPORT_MAGIC:
-                return new BranchShape(-92, -24, -76, -8, 0, -1, -20);
+                route = new int[][]{
+                    {-52, -72}, {-112, -92}, {-162, -70}, {-206, -104}, {-198, -164},
+                    {-142, -200}, {-76, -188}, {-32, -140}, {-54, -82}, {-120, -34},
+                    {-188, -8}, {-250, -34}, {-292, -88}, {-280, -150}, {-222, -202},
+                    {-150, -236}, {-68, -232}, {-2, -196}
+                };
+                break;
             default:
-                return new BranchShape(0, 0, 64, 0, 0, 1, 0);
+                route = new int[][]{{0, 0}};
+                break;
         }
+        List<Point> points = new ArrayList<>();
+        for (int[] coordinate : route) {
+            points.add(new Point(coordinate[0], coordinate[1]));
+        }
+        return points;
     }
 
     private static class NodeRef {
@@ -409,26 +443,6 @@ public class SkillTreeProgression {
         private NodeRef(SkillCategory category, int index) {
             this.category = category;
             this.index = index;
-        }
-    }
-
-    private static class BranchShape {
-        private final int anchorX;
-        private final int anchorY;
-        private final int dx;
-        private final int dy;
-        private final int px;
-        private final int py;
-        private final int curl;
-
-        private BranchShape(int anchorX, int anchorY, int dx, int dy, int px, int py, int curl) {
-            this.anchorX = anchorX;
-            this.anchorY = anchorY;
-            this.dx = dx;
-            this.dy = dy;
-            this.px = px;
-            this.py = py;
-            this.curl = curl;
         }
     }
 }
