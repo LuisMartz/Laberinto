@@ -228,18 +228,13 @@ public class SkillTreeProgression {
             }
         }
 
-        SkillCategory[] categories = SkillCategory.values();
-        for (int i = 0; i < categories.length; i++) {
-            SkillCategory current = categories[i];
-            SkillCategory next = categories[(i + 1) % categories.length];
-            connectCategoryNodes(graph, current, next);
-            connectMatchingIndex(graph, playerData, current, next, 1);
-            connectMatchingIndex(graph, playerData, current, next, 4);
-        }
-        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.OFFENSIVE_MAGIC, 6);
-        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSE, SkillCategory.DEFENSIVE_MAGIC, 3);
-        connectMatchingIndex(graph, playerData, SkillCategory.SUPPORT_MAGIC, SkillCategory.DEFENSIVE_MAGIC, 5);
-        connectMatchingIndex(graph, playerData, SkillCategory.SUPPORT_MAGIC, SkillCategory.ATTACK, 2);
+        connectCategoryNodes(graph, SkillCategory.ATTACK, SkillCategory.SUPPORT_MAGIC);
+        connectCategoryNodes(graph, SkillCategory.ATTACK, SkillCategory.DEFENSE);
+        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.DEFENSE, 3);
+        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.SUPPORT_MAGIC, 5);
+        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSE, SkillCategory.OFFENSIVE_MAGIC, 4);
+        connectMatchingIndex(graph, playerData, SkillCategory.OFFENSIVE_MAGIC, SkillCategory.DEFENSIVE_MAGIC, 6);
+        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSIVE_MAGIC, SkillCategory.SUPPORT_MAGIC, 4);
         return graph;
     }
 
@@ -385,44 +380,44 @@ public class SkillTreeProgression {
         switch (category) {
             case ATTACK:
                 route = new int[][]{
-                    {-42, -20}, {-92, -20}, {-132, -62}, {-98, -106}, {-42, -106},
-                    {12, -136}, {74, -124}, {112, -76}, {86, -28}, {28, 10},
-                    {-20, 48}, {-74, 42}, {-118, 2}, {-154, -46}, {-196, -48},
-                    {-238, -8}, {-226, 48}, {-176, 76}, {-118, 72}, {-64, 96},
-                    {-8, 82}
+                    {-88, -70}, {-154, -70}, {-210, -118}, {-196, -188}, {-124, -220},
+                    {-52, -188}, {-38, -118}, {-92, -70}, {-156, -12}, {-236, 4},
+                    {-304, -42}, {-318, -126}, {-266, -198}, {-184, -248}, {-86, -248},
+                    {-8, -198}, {18, -106}, {-18, -26}, {-94, 22}, {-178, 26},
+                    {-254, -16}
                 };
                 break;
             case DEFENSE:
                 route = new int[][]{
-                    {52, -6}, {106, -6}, {154, -38}, {208, -34}, {250, 8},
-                    {238, 62}, {184, 92}, {128, 74}, {98, 28}, {142, -18},
-                    {204, -76}, {270, -82}, {326, -42}, {340, 22}, {304, 76},
-                    {244, 112}, {182, 132}, {124, 116}, {70, 136}
+                    {92, -58}, {156, -58}, {212, -104}, {290, -92}, {336, -28},
+                    {320, 54}, {252, 98}, {174, 82}, {130, 16}, {164, -58},
+                    {242, -152}, {344, -156}, {426, -94}, {454, 4}, {420, 98},
+                    {340, 158}, {238, 174}, {148, 136}, {84, 70}
                 };
                 break;
             case OFFENSIVE_MAGIC:
                 route = new int[][]{
-                    {28, 76}, {76, 104}, {130, 102}, {174, 142}, {168, 202},
-                    {112, 238}, {50, 224}, {8, 176}, {24, 120}, {86, 70},
-                    {148, 34}, {210, 50}, {254, 100}, {252, 164}, {206, 218},
-                    {138, 268}, {58, 286}, {-10, 254}, {-52, 204}, {-38, 150},
-                    {18, 118}
+                    {92, 92}, {160, 132}, {240, 116}, {302, 166}, {302, 252},
+                    {236, 314}, {144, 300}, {86, 226}, {104, 140}, {190, 70},
+                    {296, 48}, {390, 100}, {424, 198}, {386, 296}, {292, 372},
+                    {168, 394}, {58, 348}, {10, 252}, {30, 156}, {96, 92},
+                    {196, 20}
                 };
                 break;
             case DEFENSIVE_MAGIC:
                 route = new int[][]{
-                    {-56, 76}, {-112, 102}, {-172, 90}, {-214, 136}, {-210, 198},
-                    {-158, 236}, {-94, 222}, {-52, 174}, {-72, 120}, {-138, 72},
-                    {-204, 38}, {-266, 56}, {-306, 112}, {-288, 174}, {-230, 220},
-                    {-158, 266}, {-78, 286}, {-10, 248}
+                    {-86, 112}, {-154, 146}, {-230, 128}, {-292, 178}, {-300, 264},
+                    {-244, 334}, {-148, 340}, {-74, 284}, {-68, 196}, {-136, 118},
+                    {-234, 64}, {-342, 82}, {-410, 162}, {-412, 266}, {-342, 354},
+                    {-230, 414}, {-104, 398}, {-18, 318}
                 };
                 break;
             case SUPPORT_MAGIC:
                 route = new int[][]{
-                    {-52, -72}, {-112, -92}, {-162, -70}, {-206, -104}, {-198, -164},
-                    {-142, -200}, {-76, -188}, {-32, -140}, {-54, -82}, {-120, -34},
-                    {-188, -8}, {-250, -34}, {-292, -88}, {-280, -150}, {-222, -202},
-                    {-150, -236}, {-68, -232}, {-2, -196}
+                    {-92, 8}, {-168, 58}, {-258, 46}, {-326, -20}, {-334, -118},
+                    {-274, -202}, {-174, -232}, {-78, -198}, {-38, -108}, {-92, -24},
+                    {-190, 10}, {-298, -8}, {-386, -82}, {-408, -190}, {-354, -294},
+                    {-250, -360}, {-126, -354}, {-34, -282}
                 };
                 break;
             default:
