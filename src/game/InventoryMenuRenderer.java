@@ -138,6 +138,7 @@ public class InventoryMenuRenderer {
         connect(g2, boxes.get(EquipmentSlot.WEAPON), x + width / 2 - 54, y + 164);
         connect(g2, boxes.get(EquipmentSlot.LEFT_HAND), x + width / 2 + 52, y + 165);
         connect(g2, boxes.get(EquipmentSlot.BOOTS), x + width / 2, y + 278);
+        drawQuickStats(g2, playerData, x + 16, y + height - 72, width - 32);
     }
 
     private Map<EquipmentSlot, SlotBox> createEquipmentLayout(int x, int y, int width) {
@@ -261,6 +262,22 @@ public class InventoryMenuRenderer {
             g2.setColor(TEXT);
             drawCentered(g2, tabs[i], tabX + (tabWidth - 3) / 2, y + 17);
         }
+    }
+
+    private void drawQuickStats(Graphics2D g2, PlayerData playerData, int x, int y, int width) {
+        g2.setColor(new Color(8, 7, 6, 180));
+        g2.fillRect(x, y, width, 42);
+        g2.setColor(GOLD_DIM);
+        g2.drawRect(x, y, width, 42);
+        g2.setFont(new Font("Dialog", Font.BOLD, 10));
+        g2.setColor(TEXT);
+        String row1 = "STR " + playerData.getTotalStr() + "   DEX " + playerData.getTotalDex()
+                + "   INT " + playerData.getTotalInt() + "   DEF " + playerData.getTotalDef();
+        String row2 = "AGI " + playerData.getTotalAgi() + "   LCK " + playerData.getTotalLuck()
+                + "   HP " + playerData.getCurrentHp() + "/" + playerData.getMaxHp()
+                + "   MP " + playerData.getCurrentMp() + "/" + playerData.getMaxMp();
+        g2.drawString(row1, x + 8, y + 16);
+        g2.drawString(row2, x + 8, y + 32);
     }
 
     private String slotLabel(EquipmentSlot slot) {

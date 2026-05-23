@@ -311,10 +311,12 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         }
         menuOpen = !menuOpen;
         if (menuOpen) {
+            gameMenuController.exitSection();
             if (enemyTimer != null) {
                 enemyTimer.stop();
             }
         } else {
+            gameMenuController.exitSection();
             if (enemyTimer != null) {
                 enemyTimer.start();
             }
@@ -324,44 +326,71 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
     private void handleMenuKey(int key) {
+        if (key == KeyEvent.VK_ESCAPE && gameMenuController.isSectionActive()) {
+            gameMenuController.exitSection();
+            repaint();
+            return;
+        }
         if (key == KeyEvent.VK_ESCAPE || key == KeyEvent.VK_M) {
             toggleMenu();
             return;
         }
-        if (key == KeyEvent.VK_LEFT) {
-            gameMenuController.previousTab();
-        } else if (key == KeyEvent.VK_RIGHT) {
-            gameMenuController.nextTab();
-        } else if (gameMenuController.getTabIndex() == 0) {
-            if (key == KeyEvent.VK_UP) {
+
+        if (!gameMenuController.isSectionActive()) {
+            if (key == KeyEvent.VK_LEFT) {
+                gameMenuController.previousTab();
+            } else if (key == KeyEvent.VK_RIGHT) {
+                gameMenuController.nextTab();
+            } else if (key == KeyEvent.VK_ENTER) {
+                gameMenuController.enterSection();
+                if (gameMenuController.getTabIndex() == 2) {
+                    gameMenuController.setSkillCursorNodeId(skillTreeProgression.getCurrentNodeId());
+                }
+            }
+            repaint();
+            return;
+        }
+
+        if (gameMenuController.getTabIndex() == 0) {
+            if (key == KeyEvent.VK_UP || key == KeyEvent.VK_LEFT) {
                 gameMenuController.previousStat();
-            } else if (key == KeyEvent.VK_DOWN) {
+            } else if (key == KeyEvent.VK_DOWN || key == KeyEvent.VK_RIGHT) {
                 gameMenuController.nextStat();
             } else if (key == KeyEvent.VK_ENTER) {
-                playerData.allocateStatPoint(gameMenuController.getSelectedStat());
+                if (playerData.allocateStatPoint(gameMenuController.getSelectedStat())) {
+                    menuMessage = gameMenuController.getSelectedStat().name() + " increased.";
+                } else {
+                    menuMessage = "No stat points available.";
+                }
             }
         } else if (gameMenuController.getTabIndex() == 1) {
             if (key == KeyEvent.VK_UP) {
-                gameMenuController.previousInventoryItem();
+                gameMenuController.moveInventorySelection(0, -1, playerData.getInventoryItems().size());
             } else if (key == KeyEvent.VK_DOWN) {
-                gameMenuController.nextInventoryItem(playerData.getInventoryItems().size());
+                gameMenuController.moveInventorySelection(0, 1, playerData.getInventoryItems().size());
+            } else if (key == KeyEvent.VK_LEFT) {
+                gameMenuController.moveInventorySelection(-1, 0, playerData.getInventoryItems().size());
+            } else if (key == KeyEvent.VK_RIGHT) {
+                gameMenuController.moveInventorySelection(1, 0, playerData.getInventoryItems().size());
             } else if (key == KeyEvent.VK_ENTER) {
-                playerData.equipItem(gameMenuController.getInventorySelection());
+                if (playerData.equipItem(gameMenuController.getInventorySelection())) {
+                    menuMessage = "Item equipped.";
+                }
                 gameMenuController.setInventorySelection(gameMenuController.getInventorySelection(),
                         playerData.getInventoryItems().size());
             }
         } else if (gameMenuController.getTabIndex() == 2) {
             if (key == KeyEvent.VK_UP) {
-                gameMenuController.previousSkill();
+                gameMenuController.moveSkillCursor(playerData, skillTreeProgression, 0, -1);
             } else if (key == KeyEvent.VK_DOWN) {
-                gameMenuController.nextSkill(playerData);
-            } else if (key == KeyEvent.VK_A) {
-                gameMenuController.previousSkillCategory(playerData);
-            } else if (key == KeyEvent.VK_D) {
-                gameMenuController.nextSkillCategory(playerData);
+                gameMenuController.moveSkillCursor(playerData, skillTreeProgression, 0, 1);
+            } else if (key == KeyEvent.VK_LEFT) {
+                gameMenuController.moveSkillCursor(playerData, skillTreeProgression, -1, 0);
+            } else if (key == KeyEvent.VK_RIGHT) {
+                gameMenuController.moveSkillCursor(playerData, skillTreeProgression, 1, 0);
             } else if (key == KeyEvent.VK_ENTER) {
-                PurchaseResult result = skillTreeProgression.purchaseSelected(playerData, mazeState,
-                        gameMenuController.getCurrentSkillCategory(), gameMenuController.getSkillSelectionIndex());
+                PurchaseResult result = skillTreeProgression.activateSelected(playerData, mazeState,
+                        gameMenuController.getSkillCursorNodeId());
                 menuMessage = result.getMessage();
             }
         }

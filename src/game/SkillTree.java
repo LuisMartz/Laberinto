@@ -22,6 +22,10 @@ class SkillTree {
         return new ArrayList<>(skills.values());
     }
 
+    public Skill getSkill(String id) {
+        return skills.get(id);
+    }
+
     public List<Skill> getSkillsByCategory(SkillCategory category) {
         List<Skill> result = new ArrayList<>();
         for (Skill skill : skills.values()) {

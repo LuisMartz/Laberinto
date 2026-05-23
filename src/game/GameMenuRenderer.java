@@ -47,7 +47,8 @@ class GameMenuRenderer {
         int contentWidth = bounds.width - 40;
         g2.setFont(new Font("Dialog", Font.PLAIN, 13));
         if (menuController.getTabIndex() == 0) {
-            drawStatsMenu(g2, playerData, contentX, contentY, menuController.getStatsSelection());
+            drawStatsMenu(g2, playerData, contentX, contentY, contentWidth, menuController.getStatsSelection(),
+                    menuController.isSectionActive());
         } else if (menuController.getTabIndex() == 1) {
             drawInventoryMenu(g2, playerData, contentX, contentY, contentWidth,
                     menuController.getInventorySelection(), message);
@@ -58,11 +59,12 @@ class GameMenuRenderer {
             drawLevelMenu(g2, playerData, contentX, contentY);
         }
 
+        drawInteractionHint(g2, bounds, menuController);
         g2.dispose();
     }
 
     Rectangle menuBounds(int tabIndex) {
-        boolean largeMenu = tabIndex == 1 || tabIndex == 2;
+        boolean largeMenu = tabIndex == 0 || tabIndex == 1 || tabIndex == 2;
         int boxWidth = largeMenu ? Math.min(740, BASE_WIDTH - 24) : Math.min(620, BASE_WIDTH - 40);
         int boxHeight = largeMenu ? Math.min(520, BASE_HEIGHT - 34) : Math.min(420, BASE_HEIGHT - 40);
         int boxX = (BASE_WIDTH - boxWidth) / 2;
@@ -103,14 +105,36 @@ class GameMenuRenderer {
         }
     }
 
-    private void drawStatsMenu(Graphics2D g2, PlayerData playerData, int x, int y, int statsSelection) {
+    private void drawInteractionHint(Graphics2D g2, Rectangle bounds, GameMenuController menuController) {
+        g2.setFont(new Font("Dialog", Font.PLAIN, 11));
+        g2.setColor(MUTED_TEXT);
+        String hint = menuController.isSectionActive()
+                ? "Arrows: move inside   Enter: action   Esc: back"
+                : "Left/Right: tabs   Enter: open section   M/Esc: close";
+        g2.drawString(hint, bounds.x + 18, bounds.y + bounds.height - 12);
+    }
+
+    private void drawStatsMenu(Graphics2D g2, PlayerData playerData, int x, int y, int width,
+                               int statsSelection, boolean active) {
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Dialog", Font.BOLD, 16));
-        g2.drawString("Base / Total", x, y);
-        g2.drawString("Stat points: " + playerData.getStatPoints(), x + 210, y);
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
-        int line = y + 20;
-        String[] labels = {"STR", "DEX", "INT", "DEF", "AGI", "LCK", "MIN", "CON"};
+        g2.setFont(new Font("Serif", Font.BOLD, 22));
+        g2.drawString("Character Stats", x, y);
+        g2.setFont(new Font("Dialog", Font.BOLD, 13));
+        g2.drawString("Level " + playerData.getLevel(), x + width - 150, y - 2);
+        g2.drawString("Points: " + playerData.getStatPoints(), x + width - 80, y - 2);
+        drawVitalPanel(g2, playerData, x, y + 20, width);
+
+        String[] labels = {"STR", "DEX", "INT", "DEF", "AGI", "LCK", "MIND", "CON"};
+        String[] descriptions = {
+            "Sword damage and physical power",
+            "Dagger damage and evasive actions",
+            "Spell damage and magic resistance",
+            "Physical mitigation",
+            "Turn speed and hit pressure",
+            "Criticals and lucky outcomes",
+            "Mana growth and spell focus",
+            "Health growth and endurance"
+        };
         int[] base = {
             playerData.getBaseStr(),
             playerData.getBaseDex(),
@@ -131,39 +155,71 @@ class GameMenuRenderer {
             playerData.getTotalMind(),
             playerData.getTotalCon()
         };
+        int gridY = y + 88;
+        int cardW = (width - 18) / 2;
         for (int i = 0; i < labels.length; i++) {
-            if (statsSelection == i) {
-                g2.setColor(SELECTION);
-                g2.fillRoundRect(x - 8, line - 14, 180, 19, 6, 6);
-            }
-            g2.setColor(Color.WHITE);
-            g2.drawString(labels[i] + ": " + base[i] + " / " + total[i], x, line);
-            drawMiniBar(g2, x + 86, line - 10, 70, total[i], 20);
-            line += 22;
+            int cardX = x + (i % 2) * (cardW + 18);
+            int cardY = gridY + (i / 2) * 58;
+            drawStatCard(g2, cardX, cardY, cardW, labels[i], descriptions[i], base[i], total[i],
+                    active && statsSelection == i);
         }
-        g2.setColor(Color.WHITE);
-        g2.drawString("HP: " + playerData.getCurrentHp() + " / " + playerData.getMaxHp(), x, line);
-        line += 20;
-        g2.drawString("MP: " + playerData.getCurrentMp() + " / " + playerData.getMaxMp(), x, line);
-        line += 20;
-        g2.setColor(MUTED_TEXT);
-        g2.drawString("Enter: Spend point   M/Esc: Close", x, line);
 
-        line = y + 20;
-        int equipmentX = x + 320;
+        int equipmentY = gridY + 250;
+        g2.setFont(new Font("Dialog", Font.BOLD, 13));
         g2.setColor(Color.WHITE);
-        g2.setFont(new Font("Dialog", Font.BOLD, 16));
-        g2.drawString("Equipped", equipmentX, y);
-        g2.setFont(new Font("Dialog", Font.PLAIN, 13));
+        g2.drawString("Equipped bonuses", x, equipmentY);
+        g2.setFont(new Font("Dialog", Font.PLAIN, 12));
+        int line = equipmentY + 20;
+        int shown = 0;
         for (EquipmentSlot slot : EquipmentSlot.values()) {
             Item item = playerData.getEquippedItems().get(slot);
-            String name = item == null ? "-" : item.getName();
+            if (item == null) {
+                continue;
+            }
+            if (shown >= 5) {
+                g2.setColor(MUTED_TEXT);
+                g2.drawString("+ more equipped items", x, line);
+                break;
+            }
             g2.setColor(MUTED_TEXT);
-            g2.drawString(slot.name(), equipmentX, line);
+            g2.drawString(slot.name(), x, line);
             g2.setColor(Color.WHITE);
-            g2.drawString(name, equipmentX + 105, line);
-            line += 18;
+            g2.drawString(item.getName() + "  " + item.getBonusSummary(), x + 110, line);
+            line += 17;
+            shown++;
         }
+    }
+
+    private void drawVitalPanel(Graphics2D g2, PlayerData playerData, int x, int y, int width) {
+        g2.setColor(new Color(10, 10, 14, 180));
+        g2.fillRoundRect(x, y, width, 46, 8, 8);
+        g2.setColor(new Color(72, 72, 84));
+        g2.drawRoundRect(x, y, width, 46, 8, 8);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Dialog", Font.BOLD, 12));
+        g2.drawString("HP " + playerData.getCurrentHp() + "/" + playerData.getMaxHp(), x + 14, y + 18);
+        drawMiniBar(g2, x + 86, y + 9, 170, playerData.getCurrentHp(), playerData.getMaxHp());
+        g2.drawString("MP " + playerData.getCurrentMp() + "/" + playerData.getMaxMp(), x + 300, y + 18);
+        drawMiniBar(g2, x + 372, y + 9, 170, playerData.getCurrentMp(), playerData.getMaxMp());
+        g2.drawString("XP " + playerData.getCurrentXp() + "/" + playerData.getNextLevelXp(), x + 14, y + 38);
+        drawMiniBar(g2, x + 86, y + 29, 456, playerData.getCurrentXp(), playerData.getNextLevelXp());
+    }
+
+    private void drawStatCard(Graphics2D g2, int x, int y, int width, String label, String description,
+                              int base, int total, boolean selected) {
+        g2.setColor(selected ? new Color(82, 38, 30, 220) : new Color(22, 22, 30, 210));
+        g2.fillRoundRect(x, y, width, 48, 8, 8);
+        g2.setColor(selected ? SELECTION : new Color(78, 78, 92));
+        g2.drawRoundRect(x, y, width, 48, 8, 8);
+        g2.setColor(Color.WHITE);
+        g2.setFont(new Font("Dialog", Font.BOLD, 15));
+        g2.drawString(label, x + 10, y + 18);
+        g2.setFont(new Font("Dialog", Font.BOLD, 12));
+        g2.drawString(base + " -> " + total, x + width - 70, y + 18);
+        drawMiniBar(g2, x + 10, y + 26, width - 20, total, 30);
+        g2.setFont(new Font("Dialog", Font.PLAIN, 10));
+        g2.setColor(MUTED_TEXT);
+        g2.drawString(description, x + 10, y + 43);
     }
 
     private void drawMiniBar(Graphics2D g2, int x, int y, int width, int value, int maxValue) {
@@ -180,7 +236,7 @@ class GameMenuRenderer {
                                 SkillTreeProgression progression, int x, int y, int width,
                                 GameMenuController menuController, String message) {
         skillTreeMenuRenderer.draw(g2, playerData, mazeState, progression, x, y - 12, width, CONTENT_HEIGHT,
-                menuController.getSkillCategoryIndex(), menuController.getSkillSelectionIndex(), message);
+                menuController.getSkillCursorNodeId(), message);
     }
 
     private void drawLevelMenu(Graphics2D g2, PlayerData playerData, int x, int y) {
