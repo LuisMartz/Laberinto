@@ -48,16 +48,11 @@ class PanelTriangulo extends JPanel {
     private final int coordenadaBarraSaludEnemigoY = 20;
     private final int anchoBarraSaludEnemigo = 200;
     private final int altoBarraSaludEnemigo = 20;
-    private final int saludEnemigoMaxima;
-    private int saludEnemigoActual;
     private final int xpReward;
     private final String enemyName;
     private final CombatState combatState;
     private final CombatResolver combatResolver;
 
-    private boolean playerTurn = true;
-    private boolean playerGuarding = false;
-    private boolean enemyGuarding = false;
     private boolean combatEnded = false;
     private final Timer enemyTurnTimer;
     private final List<String> combatLog = new ArrayList<>();
@@ -76,8 +71,6 @@ class PanelTriangulo extends JPanel {
     public PanelTriangulo(PlayerData playerData, CombatEnemy combatEnemy) {
         this.playerData = playerData;
         this.enemyName = combatEnemy.getName();
-        this.saludEnemigoMaxima = combatEnemy.getMaxHp();
-        this.saludEnemigoActual = combatEnemy.getMaxHp();
         this.xpReward = combatEnemy.getXpReward();
         this.combatState = new CombatState(Combatant.fromPlayerData(playerData), Combatant.fromEnemy(combatEnemy));
         this.combatResolver = new CombatResolver();
@@ -99,12 +92,12 @@ class PanelTriangulo extends JPanel {
 
         actualizarPosicionTriangulo();
         logLine(enemyName + " appears.");
-        logLine("Player turn.");
 
         addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (!playerTurn || combatEnded) {
+                Combatant active = combatState.getCurrentTurn();
+                if (combatEnded || active == null || !active.isPlayerControlled()) {
                     return;
                 }
                 int codigoTecla = e.getKeyCode();
@@ -125,6 +118,7 @@ class PanelTriangulo extends JPanel {
                 repaint();
             }
         });
+        advanceCombatFlow();
     }
 
     private void actualizarPosicionTriangulo() {
@@ -148,14 +142,15 @@ class PanelTriangulo extends JPanel {
     private void handleMainSelection() {
         String option = combatMenu.getSelectedOption();
         if (option.equals("Attack")) {
-            playerGuarding = false;
             performPhysicalAttack();
-            endPlayerTurn();
+            endActiveTurn(CombatAction.attack());
         } else if (option.equals("Defend")) {
-            playerGuarding = true;
-            combatState.getPlayer().setGuarding(true);
+            Combatant active = combatState.getCurrentTurn();
+            if (active != null) {
+                active.setGuarding(true);
+            }
             logLine("Player guards.");
-            endPlayerTurn();
+            endActiveTurn(CombatAction.defend());
         } else if (option.equals("Skills")) {
             if (!combatMenu.hasUsableSkills()) {
                 logLine("No skills available.");
@@ -198,7 +193,10 @@ class PanelTriangulo extends JPanel {
             return;
         }
         playerData.setCurrentMp(playerData.getCurrentMp() - skill.getMpCost());
-        combatState.getPlayer().spendMp(skill.getMpCost());
+        Combatant active = combatState.getCurrentTurn();
+        if (active != null) {
+            active.spendMp(skill.getMpCost());
+        }
         executeSkill(skill);
     }
 
@@ -221,18 +219,24 @@ class PanelTriangulo extends JPanel {
         if (stack.getName().equalsIgnoreCase("Potion")) {
             int healAmount = POTION_HEAL + playerData.getTotalDef() / 2;
             playerData.setCurrentHp(playerData.getCurrentHp() + healAmount);
-            combatState.getPlayer().heal(healAmount);
+            Combatant active = combatState.getCurrentTurn();
+            if (active != null) {
+                active.heal(healAmount);
+            }
             logLine("Player uses Potion. +" + healAmount + " HP.");
         } else {
             logLine("Player uses " + stack.getName() + ".");
         }
         if (!combatEnded) {
-            endPlayerTurn();
+            endActiveTurn(CombatAction.item());
         }
     }
 
     private void executeSkill(Skill skill) {
-        playerGuarding = false;
+        Combatant active = combatState.getCurrentTurn();
+        if (active != null) {
+            active.setGuarding(false);
+        }
         switch (skill.getAction()) {
             case PHYSICAL:
                 performSkillPhysical(skill);
@@ -243,18 +247,23 @@ class PanelTriangulo extends JPanel {
             case HEAL:
                 int healAmount = skill.getPower() + playerData.getTotalDef();
                 playerData.setCurrentHp(playerData.getCurrentHp() + healAmount);
-                combatState.getPlayer().heal(healAmount);
+                if (active != null) {
+                    active.heal(healAmount);
+                }
                 logLine("Player heals for " + healAmount + ".");
                 break;
             case GUARD:
-                playerGuarding = true;
-                combatState.getPlayer().setGuarding(true);
+                if (active != null) {
+                    active.setGuarding(true);
+                }
                 logLine("Player casts guard.");
                 break;
             case RESTORE_MP:
                 int mpAmount = skill.getPower() + playerData.getTotalLuck() / 2;
                 playerData.setCurrentMp(playerData.getCurrentMp() + mpAmount);
-                combatState.getPlayer().restoreMp(mpAmount);
+                if (active != null) {
+                    active.restoreMp(mpAmount);
+                }
                 logLine("Player restores " + mpAmount + " MP.");
                 break;
             default:
@@ -263,79 +272,120 @@ class PanelTriangulo extends JPanel {
         }
 
         if (!combatEnded) {
-            endPlayerTurn();
+            endActiveTurn(CombatAction.skill(skill));
         }
     }
 
     private void performPhysicalAttack() {
-        combatState.getEnemy().setGuarding(enemyGuarding);
-        CombatResult result = combatResolver.resolvePhysicalAttack(combatState.getPlayer(), combatState.getEnemy(), 0, 0);
-        saludEnemigoActual = combatState.getEnemy().getCurrentHp();
+        Combatant attacker = combatState.getCurrentTurn();
+        Combatant defender = combatState.getFirstAliveEnemy();
+        if (attacker == null || defender == null) {
+            return;
+        }
+        CombatResult result = combatResolver.resolvePhysicalAttack(attacker, defender, 0, 0);
         logLine(result.getMessage());
-        enemyGuarding = combatState.getEnemy().isGuarding();
         checkCombatEnd();
     }
 
     private void performSkillPhysical(Skill skill) {
-        combatState.getEnemy().setGuarding(enemyGuarding);
-        CombatResult result = combatResolver.resolvePhysicalAttack(combatState.getPlayer(), combatState.getEnemy(),
+        Combatant attacker = combatState.getCurrentTurn();
+        Combatant defender = combatState.getFirstAliveEnemy();
+        if (attacker == null || defender == null) {
+            return;
+        }
+        CombatResult result = combatResolver.resolvePhysicalAttack(attacker, defender,
                 skill.getAccuracyBonus(), skill.getPower());
-        saludEnemigoActual = combatState.getEnemy().getCurrentHp();
-        logLine(result.getMessage().replace(combatState.getPlayer().getName(), skill.getName()));
-        enemyGuarding = combatState.getEnemy().isGuarding();
+        logLine(result.getMessage().replace(attacker.getName(), skill.getName()));
         checkCombatEnd();
     }
 
     private void performSkillMagic(Skill skill) {
-        combatState.getEnemy().setGuarding(enemyGuarding);
-        CombatResult result = combatResolver.resolveMagicAttack(combatState.getPlayer(), combatState.getEnemy(), skill);
-        saludEnemigoActual = combatState.getEnemy().getCurrentHp();
+        Combatant attacker = combatState.getCurrentTurn();
+        Combatant defender = combatState.getFirstAliveEnemy();
+        if (attacker == null || defender == null) {
+            return;
+        }
+        CombatResult result = combatResolver.resolveMagicAttack(attacker, defender, skill);
         logLine(result.getMessage());
-        enemyGuarding = combatState.getEnemy().isGuarding();
         checkCombatEnd();
     }
 
-    private void endPlayerTurn() {
+    private void endActiveTurn(CombatAction action) {
         if (combatEnded) {
             return;
         }
-        combatState.finishTurn(combatState.getPlayer());
-        playerTurn = false;
+        combatState.finishTurn(combatState.getCurrentTurn(), action);
         combatMenu.showMain();
-        logLine("Enemy turn...");
-        enemyTurnTimer.restart();
+        advanceCombatFlow();
+    }
+
+    private void advanceCombatFlow() {
+        if (combatEnded || combatState.isEnded()) {
+            checkCombatEnd();
+            return;
+        }
+        Combatant active = combatState.getCurrentTurn();
+        if (active == null) {
+            checkCombatEnd();
+            return;
+        }
+        announceCurrentTurn();
+        if (!active.isPlayerControlled()) {
+            enemyTurnTimer.restart();
+        }
+    }
+
+    private void announceCurrentTurn() {
+        Combatant active = combatState.getCurrentTurn();
+        if (active != null) {
+            logLine(active.getName() + " turn.");
+        }
     }
 
     private void executeEnemyTurn() {
         if (combatEnded) {
             return;
         }
-        double hpRatio = (double) saludEnemigoActual / Math.max(1, saludEnemigoMaxima);
-        if (hpRatio < 0.3 && Math.random() < 0.4) {
-            enemyGuarding = true;
-            combatState.getEnemy().setGuarding(true);
-            logLine("Enemy guards.");
-        } else {
-            performEnemyAttack();
-        }
-        if (combatEnded) {
+        Combatant active = combatState.getCurrentTurn();
+        if (active == null || active.isPlayerControlled()) {
             return;
         }
-        combatState.finishTurn(combatState.getEnemy());
-        playerTurn = true;
-        logLine("Player turn.");
+        double hpRatio = (double) active.getCurrentHp() / Math.max(1, active.getMaxHp());
+        if (hpRatio < 0.3 && Math.random() < 0.4) {
+            active.setGuarding(true);
+            logLine(active.getName() + " guards.");
+            combatState.finishTurn(active, CombatAction.defend());
+        } else {
+            performEnemyAttack();
+            combatState.finishTurn(active, CombatAction.attack());
+        }
+        advanceCombatFlow();
         repaint();
     }
 
     private void performEnemyAttack() {
-        int guardAccuracyPenalty = playerGuarding ? -15 : 0;
-        combatState.getPlayer().setGuarding(playerGuarding);
-        CombatResult result = combatResolver.resolvePhysicalAttack(combatState.getEnemy(), combatState.getPlayer(),
+        Combatant attacker = combatState.getCurrentTurn();
+        Combatant defender = firstAlivePlayer();
+        if (attacker == null || defender == null) {
+            return;
+        }
+        int guardAccuracyPenalty = defender.isGuarding() ? -15 : 0;
+        CombatResult result = combatResolver.resolvePhysicalAttack(attacker, defender,
                 guardAccuracyPenalty, 0);
-        playerData.setCurrentHp(combatState.getPlayer().getCurrentHp());
+        if (defender.isPlayerControlled()) {
+            playerData.setCurrentHp(defender.getCurrentHp());
+        }
         logLine(result.getMessage());
-        playerGuarding = combatState.getPlayer().isGuarding();
         checkCombatEnd();
+    }
+
+    private Combatant firstAlivePlayer() {
+        for (Combatant ally : combatState.getAllies()) {
+            if (ally.isAlive()) {
+                return ally;
+            }
+        }
+        return null;
     }
 
     private void logLine(String message) {
@@ -422,8 +472,10 @@ class PanelTriangulo extends JPanel {
                 altoBarraSaludEnemigo);
         g2.drawString(enemyName, coordenadaBarraSaludEnemigoX, coordenadaBarraSaludEnemigoY + 40);
         g2.setColor(Color.RED);
-        int anchoRellenoBarraSaludEnemigo = (int) ((double) saludEnemigoActual / saludEnemigoMaxima
-                * anchoBarraSaludEnemigo);
+        Combatant enemy = combatState.getFirstAliveEnemy();
+        int enemyHp = enemy == null ? 0 : enemy.getCurrentHp();
+        int enemyMaxHp = enemy == null ? 1 : enemy.getMaxHp();
+        int anchoRellenoBarraSaludEnemigo = (int) ((double) enemyHp / enemyMaxHp * anchoBarraSaludEnemigo);
         g2.fillRect(coordenadaBarraSaludEnemigoX, coordenadaBarraSaludEnemigoY, anchoRellenoBarraSaludEnemigo,
                 altoBarraSaludEnemigo);
     }

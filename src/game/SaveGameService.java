@@ -22,12 +22,31 @@ public class SaveGameService {
         }
     }
 
+    public void save(File file, MazeState mazeState, SkillTreeProgression skillTreeProgression, PlayerData playerData) throws IOException {
+        Properties properties = mazeState.toProperties();
+        skillTreeProgression.save(properties);
+        playerData.save(properties);
+        try (FileOutputStream output = new FileOutputStream(file)) {
+            properties.store(output, "Laberinto save");
+        }
+    }
+
     public void load(File file, MazeState mazeState, SkillTreeProgression skillTreeProgression) throws IOException {
         Properties properties = new Properties();
         try (FileInputStream input = new FileInputStream(file)) {
             properties.load(input);
         }
         mazeState.load(properties);
+        skillTreeProgression.load(properties);
+    }
+
+    public void load(File file, MazeState mazeState, SkillTreeProgression skillTreeProgression, PlayerData playerData) throws IOException {
+        Properties properties = new Properties();
+        try (FileInputStream input = new FileInputStream(file)) {
+            properties.load(input);
+        }
+        mazeState.load(properties);
+        playerData.load(properties);
         skillTreeProgression.load(properties);
     }
 }

@@ -14,6 +14,11 @@ class Inventory {
         items.add(item);
     }
 
+    public void clear() {
+        items.clear();
+        equipped.clear();
+    }
+
     public List<Item> getItems() {
         return Collections.unmodifiableList(items);
     }
@@ -41,6 +46,10 @@ class Inventory {
         }
         items.add(item);
         return true;
+    }
+
+    public void equipDirect(Item item) {
+        equipped.put(item.getSlot(), item);
     }
 
     public int getBonusStr() {

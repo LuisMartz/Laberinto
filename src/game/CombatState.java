@@ -1,25 +1,63 @@
 package game;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class CombatState {
-    private final Combatant player;
-    private final Combatant enemy;
+    private final List<Combatant> combatants;
     private final TurnManager turnManager;
     private boolean ended;
 
     public CombatState(Combatant player, Combatant enemy) {
-        this.player = player;
-        this.enemy = enemy;
-        this.turnManager = new TurnManager(Arrays.asList(player, enemy));
+        this(Arrays.asList(player, enemy));
+    }
+
+    public CombatState(List<Combatant> combatants) {
+        this.combatants = new ArrayList<>(combatants);
+        this.turnManager = new TurnManager(this.combatants);
     }
 
     public Combatant getPlayer() {
-        return player;
+        return getAllies().isEmpty() ? null : getAllies().get(0);
     }
 
     public Combatant getEnemy() {
-        return enemy;
+        return getFirstAliveEnemy();
+    }
+
+    public List<Combatant> getCombatants() {
+        return Collections.unmodifiableList(combatants);
+    }
+
+    public List<Combatant> getAllies() {
+        List<Combatant> allies = new ArrayList<>();
+        for (Combatant combatant : combatants) {
+            if (combatant.isPlayerControlled()) {
+                allies.add(combatant);
+            }
+        }
+        return allies;
+    }
+
+    public List<Combatant> getEnemies() {
+        List<Combatant> enemies = new ArrayList<>();
+        for (Combatant combatant : combatants) {
+            if (!combatant.isPlayerControlled()) {
+                enemies.add(combatant);
+            }
+        }
+        return enemies;
+    }
+
+    public Combatant getFirstAliveEnemy() {
+        for (Combatant enemy : getEnemies()) {
+            if (enemy.isAlive()) {
+                return enemy;
+            }
+        }
+        return null;
     }
 
     public TurnManager getTurnManager() {
@@ -34,8 +72,12 @@ public class CombatState {
         turnManager.advanceAfterTurn(combatant);
     }
 
+    public void finishTurn(Combatant combatant, CombatAction action) {
+        turnManager.advanceAfterTurn(combatant, action == null ? 0 : action.getDelayModifier());
+    }
+
     public boolean isEnded() {
-        return ended || !player.isAlive() || !enemy.isAlive();
+        return ended || areAllPlayersDefeated() || areAllEnemiesDefeated();
     }
 
     public void markEnded() {
@@ -43,6 +85,32 @@ public class CombatState {
     }
 
     public boolean didPlayerWin() {
-        return enemy.getCurrentHp() <= 0 && player.getCurrentHp() > 0;
+        return areAllEnemiesDefeated() && !areAllPlayersDefeated();
+    }
+
+    public boolean areAllEnemiesDefeated() {
+        List<Combatant> enemies = getEnemies();
+        if (enemies.isEmpty()) {
+            return true;
+        }
+        for (Combatant enemy : enemies) {
+            if (enemy.isAlive()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean areAllPlayersDefeated() {
+        List<Combatant> allies = getAllies();
+        if (allies.isEmpty()) {
+            return true;
+        }
+        for (Combatant ally : allies) {
+            if (ally.isAlive()) {
+                return false;
+            }
+        }
+        return true;
     }
 }
