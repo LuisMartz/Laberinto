@@ -6,7 +6,9 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
+import java.util.StringJoiner;
 
 class SkillTree {
     private final Map<String, Skill> skills = new LinkedHashMap<>();
@@ -63,6 +65,28 @@ class SkillTree {
         }
         unlocked.add(id);
         return true;
+    }
+
+    public void save(Properties properties) {
+        StringJoiner joiner = new StringJoiner(",");
+        for (String id : unlocked) {
+            joiner.add(id);
+        }
+        properties.setProperty("player.skills.unlocked", joiner.toString());
+    }
+
+    public void load(Properties properties) {
+        unlocked.clear();
+        String raw = properties.getProperty("player.skills.unlocked", "");
+        if (raw.trim().isEmpty()) {
+            return;
+        }
+        for (String id : raw.split(",")) {
+            String clean = id.trim();
+            if (skills.containsKey(clean)) {
+                unlocked.add(clean);
+            }
+        }
     }
 
     public int getPassiveBonusStr() {

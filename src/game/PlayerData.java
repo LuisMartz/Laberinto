@@ -1,14 +1,10 @@
 package game;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.HashSet;
+import java.util.Properties;
 
 public class PlayerData {
     private int baseStr = 5;
@@ -370,6 +366,168 @@ public class PlayerData {
         }
         consumables.put(name, count - 1);
         return true;
+    }
+
+    public void save(Properties properties) {
+        properties.setProperty("player.level", String.valueOf(level));
+        properties.setProperty("player.currentXp", String.valueOf(currentXp));
+        properties.setProperty("player.statPoints", String.valueOf(statPoints));
+        properties.setProperty("player.skillPoints", String.valueOf(skillPoints));
+        properties.setProperty("player.baseStr", String.valueOf(baseStr));
+        properties.setProperty("player.baseDex", String.valueOf(baseDex));
+        properties.setProperty("player.baseInt", String.valueOf(baseInt));
+        properties.setProperty("player.baseDef", String.valueOf(baseDef));
+        properties.setProperty("player.baseAgi", String.valueOf(baseAgi));
+        properties.setProperty("player.baseLuck", String.valueOf(baseLuck));
+        properties.setProperty("player.baseMind", String.valueOf(baseMind));
+        properties.setProperty("player.baseCon", String.valueOf(baseCon));
+        properties.setProperty("player.currentHp", String.valueOf(currentHp));
+        properties.setProperty("player.currentMp", String.valueOf(currentMp));
+
+        List<Item> inventoryItems = inventory.getItems();
+        properties.setProperty("player.inventory.count", String.valueOf(inventoryItems.size()));
+        for (int i = 0; i < inventoryItems.size(); i++) {
+            saveItem(properties, "player.inventory." + i + ".", inventoryItems.get(i));
+        }
+
+        List<Map.Entry<EquipmentSlot, Item>> equippedItems = new ArrayList<>(inventory.getEquippedItems().entrySet());
+        properties.setProperty("player.equipped.count", String.valueOf(equippedItems.size()));
+        for (int i = 0; i < equippedItems.size(); i++) {
+            Map.Entry<EquipmentSlot, Item> entry = equippedItems.get(i);
+            properties.setProperty("player.equipped." + i + ".slot", entry.getKey().name());
+            saveItem(properties, "player.equipped." + i + ".item.", entry.getValue());
+        }
+
+        List<ConsumableStack> consumableStacks = getConsumables();
+        properties.setProperty("player.consumables.count", String.valueOf(consumableStacks.size()));
+        for (int i = 0; i < consumableStacks.size(); i++) {
+            ConsumableStack stack = consumableStacks.get(i);
+            properties.setProperty("player.consumables." + i + ".name", stack.getName());
+            properties.setProperty("player.consumables." + i + ".count", String.valueOf(stack.getCount()));
+        }
+
+        skillTree.save(properties);
+    }
+
+    public void load(Properties properties) {
+        level = getInt(properties, "player.level", level);
+        currentXp = getInt(properties, "player.currentXp", currentXp);
+        statPoints = getInt(properties, "player.statPoints", statPoints);
+        skillPoints = getInt(properties, "player.skillPoints", skillPoints);
+        baseStr = getInt(properties, "player.baseStr", baseStr);
+        baseDex = getInt(properties, "player.baseDex", baseDex);
+        baseInt = getInt(properties, "player.baseInt", baseInt);
+        baseDef = getInt(properties, "player.baseDef", baseDef);
+        baseAgi = getInt(properties, "player.baseAgi", baseAgi);
+        baseLuck = getInt(properties, "player.baseLuck", baseLuck);
+        baseMind = getInt(properties, "player.baseMind", baseMind);
+        baseCon = getInt(properties, "player.baseCon", baseCon);
+
+        resetTreeBonuses();
+        skillTree.load(properties);
+        loadInventory(properties);
+        loadConsumables(properties);
+
+        currentHp = getInt(properties, "player.currentHp", currentHp);
+        currentMp = getInt(properties, "player.currentMp", currentMp);
+        clampVitals();
+    }
+
+    private void loadInventory(Properties properties) {
+        if (!properties.containsKey("player.inventory.count") && !properties.containsKey("player.equipped.count")) {
+            return;
+        }
+        inventory.clear();
+        int inventoryCount = getInt(properties, "player.inventory.count", 0);
+        for (int i = 0; i < inventoryCount; i++) {
+            Item item = loadItem(properties, "player.inventory." + i + ".");
+            if (item != null) {
+                inventory.addItem(item);
+            }
+        }
+
+        int equippedCount = getInt(properties, "player.equipped.count", 0);
+        for (int i = 0; i < equippedCount; i++) {
+            Item item = loadItem(properties, "player.equipped." + i + ".item.");
+            if (item != null) {
+                inventory.equipDirect(item);
+            }
+        }
+    }
+
+    private void loadConsumables(Properties properties) {
+        if (!properties.containsKey("player.consumables.count")) {
+            return;
+        }
+        consumables.clear();
+        int consumableCount = getInt(properties, "player.consumables.count", 0);
+        for (int i = 0; i < consumableCount; i++) {
+            String name = properties.getProperty("player.consumables." + i + ".name", "").trim();
+            int count = getInt(properties, "player.consumables." + i + ".count", 0);
+            if (!name.isEmpty() && count > 0) {
+                addConsumable(name, count);
+            }
+        }
+    }
+
+    private void saveItem(Properties properties, String prefix, Item item) {
+        properties.setProperty(prefix + "name", item.getName());
+        properties.setProperty(prefix + "slot", item.getSlot().name());
+        properties.setProperty(prefix + "str", String.valueOf(item.getStrBonus()));
+        properties.setProperty(prefix + "dex", String.valueOf(item.getDexBonus()));
+        properties.setProperty(prefix + "int", String.valueOf(item.getIntBonus()));
+        properties.setProperty(prefix + "def", String.valueOf(item.getDefBonus()));
+        properties.setProperty(prefix + "agi", String.valueOf(item.getAgiBonus()));
+        properties.setProperty(prefix + "luck", String.valueOf(item.getLuckBonus()));
+        properties.setProperty(prefix + "hp", String.valueOf(item.getHpBonus()));
+        properties.setProperty(prefix + "mp", String.valueOf(item.getMpBonus()));
+        properties.setProperty(prefix + "scaling", item.getWeaponScaling().name());
+    }
+
+    private Item loadItem(Properties properties, String prefix) {
+        String name = properties.getProperty(prefix + "name");
+        if (name == null || name.trim().isEmpty()) {
+            return null;
+        }
+        EquipmentSlot slot = getEnum(properties, prefix + "slot", EquipmentSlot.class, EquipmentSlot.ACCESSORY);
+        WeaponScaling scaling = getEnum(properties, prefix + "scaling", WeaponScaling.class, WeaponScaling.NONE);
+        return new Item(
+                name,
+                slot,
+                getInt(properties, prefix + "str", 0),
+                getInt(properties, prefix + "dex", 0),
+                getInt(properties, prefix + "int", 0),
+                getInt(properties, prefix + "def", 0),
+                getInt(properties, prefix + "agi", 0),
+                getInt(properties, prefix + "luck", 0),
+                getInt(properties, prefix + "hp", 0),
+                getInt(properties, prefix + "mp", 0),
+                scaling
+        );
+    }
+
+    private int getInt(Properties properties, String key, int fallback) {
+        String raw = properties.getProperty(key);
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private <T extends Enum<T>> T getEnum(Properties properties, String key, Class<T> type, T fallback) {
+        String raw = properties.getProperty(key);
+        if (raw == null) {
+            return fallback;
+        }
+        try {
+            return Enum.valueOf(type, raw.trim());
+        } catch (IllegalArgumentException ex) {
+            return fallback;
+        }
     }
 
     private int clamp(int value, int min, int max) {

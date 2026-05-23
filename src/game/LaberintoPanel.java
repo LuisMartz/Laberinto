@@ -176,50 +176,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
 
 
-    /*
-    private void moverEnemigo() {
-        if (inCombat || menuOpen || !enemyAlive) {
-            return;
-        }
-        // Lógica de movimiento del enemigo (puedes personalizar esto según tus necesidades)
-        Random random = new Random();
-        int direccion = random.nextInt(4); // 0: arriba, 1: abajo, 2: izquierda, 3: derecha
-    
-        int nuevaX = enemigo.getRow();
-        int nuevaY = enemigo.getColumn();
-    
-        switch (direccion) {
-            case 0: // Arriba
-                nuevaX = Math.max(0, nuevaX - 1);
-                break;
-            case 1: // Abajo
-                nuevaX = Math.min(laberinto.length - 1, nuevaX + 1);
-                break;
-            case 2: // Izquierda
-                nuevaY = Math.max(0, nuevaY - 1);
-                break;
-            case 3: // Derecha
-                nuevaY = Math.min(laberinto[0].length - 1, nuevaY + 1);
-                break;
-        }
-    
-        // Verificar que la nueva posición sea válida antes de actualizarla
-        if (laberinto[nuevaX][nuevaY] == 1) {
-            // Restaurar la posición actual del enemigo en el laberinto
-            laberinto[enemigo.getRow()][enemigo.getColumn()] = 1;
-    
-            enemigo.setPosition(nuevaX, nuevaY);
-    
-            // Actualizar la posición del enemigo en el laberinto
-            laberinto[nuevaX][nuevaY] = 4;
-            
-        }
-        if (enemigo.getRow() == posX && enemigo.getColumn() == posY) {
-            startCombat();
-        }
-    }
-    
-    */
     private boolean showCombatInHostOrFrame(PanelTriangulo combatPanel) {
         if (gameHost != null) {
             gameHost.showCombat(combatPanel);
@@ -264,41 +220,11 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         requestFocusInWindow();
     }
 
-    /*
-    private void removeEnemyFromMaze() {
-        int oldX = enemigo.getRow();
-        int oldY = enemigo.getColumn();
-        if (oldX >= 0 && oldX < laberinto.length && oldY >= 0 && oldY < laberinto[0].length) {
-            if (laberinto[oldX][oldY] == 4) {
-                laberinto[oldX][oldY] = 1;
-            }
-        }
-        enemigo.defeat();
-    }
-
-    */
-    /*
-    private void colocarLetrasAleatorias() {
-        Random random = new Random();
-        int letrasColocadas = 0;
-
-        while (letrasColocadas < 4) {
-            int i = random.nextInt(laberinto.length);
-            int j = random.nextInt(laberinto[0].length);
-
-            if (laberinto[i][j] == 1) {
-                laberinto[i][j] = 2; // Representaremos las letras con el número 2
-                letrasColocadas++;
-            }
-        }
-    }
-
-    */
     void guardarPartida() throws IOException {
         removeKeyListener(this);
         
         try {
-            saveGameService.save(saveGameService.createTimestampedSaveFile(), mazeState, skillTreeProgression);
+            saveGameService.save(saveGameService.createTimestampedSaveFile(), mazeState, skillTreeProgression, playerData);
         } finally {
             addKeyListener(this);
             requestFocusInWindow();
@@ -335,105 +261,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         g2.dispose();
     }
 
-    /*
-    private void drawScene(Graphics2D g) {
-        g.clearRect(0, 0, BASE_WIDTH, BASE_HEIGHT);
-    
-        // Draw the maze
-        for (int i = 0; i < laberinto.length; i++) {
-            for (int j = 0; j < laberinto[i].length; j++) {
-                int x = j * 50; // x-coordinate of the cell
-                int y = i * 50; // y-coordinate of the cell
-                
-                // Dibujar imagen correspondiente con la lista array del objeto
-                switch (laberinto[i][j]) {
-                    case 0: // Muro
-                        g.drawImage(pared.getImage(), x, y, 50, 50, null);
-                        break;
-                    case 1: // Camino
-                        g.drawImage(suelo.getImage(), x, y, 50, 50, null);
-                        break;
-                    case 2: // Letra (Monedas)
-                        g.drawImage(palabra.getImage(), x, y, 50, 50, null);
-                        break;
-                    case 3: // Salida
-                        g.drawImage(salida.getImage(), x, y, 50, 50, null);
-                        break;
-                    case 4: // Enemigo
-                        g.drawImage(iconoEnemigo.getImage(), x, y, 50, 50, null);
-                        break;
-                    default:
-                        break;
-                }
-            }
-        }
-    
-        // Dibujar imagen del jugador
-        g.drawImage(iconoJugador.getImage(), posY * 50, posX * 50, 50, 50, null);
-    
-        // Dibujar la puntuaci?n
-        g.setColor(Color.BLACK);
-        g.setFont(new Font("Roboto", Font.BOLD, 20));
-        g.drawString("Monedas: " + puntuacion, 10, BASE_HEIGHT - 10);
-
-        if (menuOpen) {
-            drawMenuOverlay(g);
-        }
-    }
-    
-    
-    private void recogerLetra() {
-        if (laberinto[posX][posY] == 2) {
-            puntuacion += 10;
-            laberinto[posX][posY] = 1; 
-            revalidate();
-            repaint();
-    
-            // Comprobar que todas las letras han sido recogidas
-            boolean allLetrasCollected = true;
-            for (int i = 0; i < laberinto.length; i++) {
-                for (int j = 0; j < laberinto[i].length; j++) {
-                    if (laberinto[i][j] == 2) {
-                        allLetrasCollected = false;
-                        break;
-                    }
-                }
-                if (!allLetrasCollected) {
-                    break;
-                }
-            }
-    
-            if (allLetrasCollected) {
-                // Notifcar al jugador que se han recogido todas las letras
-                JOptionPane.showMessageDialog(this, "¡Has recogido todas las letras!");
-    
-                // Elegir un cuadrado aleatorio para que saque la salida
-                int exitX, exitY;
-                do {
-                    exitX = (int) (Math.random() * laberinto.length);
-                    exitY = (int) (Math.random() * laberinto[0].length);
-                } while (laberinto[exitX][exitY] != 1);
-    
-                // Representar la salida como [3]
-                laberinto[exitX][exitY] = 3;
-                repaint();
-            }
-        } else if (laberinto[posX][posY] == 3) {
-            // El jugador toca la salida
-            // Notificar al jugador de que ha encontrado la salida y puede pasar al siguiente laberinto
-            JOptionPane.showMessageDialog(this, "¡Has encontrado la salida! ¡Pasando al siguiente laberinto!");
-    
-            if (nivelActual < 6) { // Total de laberintos
-                nivelActual++;
-                cargarSiguienteLaberinto(); // Cargar laberinto
-                repaint();
-            } else {
-                JOptionPane.showMessageDialog(this, "¡Has completado todos los laberintos!");
-                // Si se completan todos los laberintos indicarlo con un mensaje
-            }
-        }
-    }
-    */
     private void showLevelLoadingInHostOrRun(String message, Runnable onComplete) {
         if (gameHost != null) {
             gameHost.showTemporaryScreen(new LevelLoadingPanel(message), 2000, () -> {
@@ -446,7 +273,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
     }
     
     
-    private int jumpDirection = 0;
 
     @Override
     public void keyPressed(KeyEvent e) {
@@ -479,30 +305,6 @@ public class LaberintoPanel extends JPanel implements KeyListener {
         });
     }
 
-/*
-private void jump() {
-    System.out.println("Jumping");
-
-    int jumpPosY = posY + jumpDirection;
-
-  
-    if (laberinto[posX][posY] == 1) {
-    
-        if (jumpPosY >= 0 && jumpPosY < laberinto[0].length && laberinto[posX][jumpPosY] == 0) {
-            
-            int targetPosY = posY + 2 * jumpDirection;
-            if (targetPosY >= 0 && targetPosY < laberinto[0].length && laberinto[posX][targetPosY] == 1) {
-            
-                posY = targetPosY;
-
-                
-                jumpDirection = 0;
-            }
-        }
-    }
-}
-
-*/
     private void toggleMenu() {
         if (screenController.isInCombat()) {
             return;
@@ -640,7 +442,7 @@ private void jump() {
     public void loadGame(File selectedFile) throws IOException {
         removeKeyListener(this);
         try {
-            saveGameService.load(selectedFile, mazeState, skillTreeProgression);
+            saveGameService.load(selectedFile, mazeState, skillTreeProgression, playerData);
             skillTreeProgression.reapplyPurchasedStats(playerData);
             screenController.syncFromState();
         } finally {
