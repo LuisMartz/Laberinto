@@ -14,6 +14,8 @@ public class SkillTreeProgression {
     private static final int STAT_NODE_BASE_COST = 15;
     private static final int SKILL_NODE_BASE_COST = 25;
     private static final int TRAVEL_COST = 8;
+    private static final int GRID_CELL_SIZE = 82;
+    private static final int ROOM_SIZE = 5;
     private final Set<String> purchasedStatNodes = new HashSet<>();
     private String currentNodeId = START_NODE_ID;
 
@@ -196,14 +198,13 @@ public class SkillTreeProgression {
         Map<String, Point> positions = new HashMap<>();
         positions.put(START_NODE_ID, new Point(0, 0));
         for (SkillCategory category : SkillCategory.values()) {
-            List<Point> route = routeFor(category);
-            positions.put(categoryNodeId(category), route.get(0));
+            List<GridCell> route = generatedRoomRoute(category);
+            Point origin = roomOrigin(category);
+            positions.put(categoryNodeId(category), toPoint(origin, route.get(0)));
             List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
             for (int i = 0; i < skills.size(); i++) {
-                int statRouteIndex = Math.min(route.size() - 1, i * 2 + 1);
-                int skillRouteIndex = Math.min(route.size() - 1, i * 2 + 2);
-                positions.put(statNodeId(category, i), route.get(statRouteIndex));
-                positions.put(skillNodeId(skills.get(i)), route.get(skillRouteIndex));
+                positions.put(statNodeId(category, i), toPoint(origin, route.get(i * 2 + 1)));
+                positions.put(skillNodeId(skills.get(i)), toPoint(origin, route.get(i * 2 + 2)));
             }
         }
         return positions;
@@ -216,25 +217,13 @@ public class SkillTreeProgression {
         connect(graph, START_NODE_ID, categoryNodeId(SkillCategory.SUPPORT_MAGIC));
 
         for (SkillCategory category : SkillCategory.values()) {
-            String categoryId = categoryNodeId(category);
-            String previous = categoryId;
-            List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
-            for (int i = 0; i < skills.size(); i++) {
-                String stat = statNodeId(category, i);
-                String skill = skillNodeId(skills.get(i));
-                connect(graph, previous, stat);
-                connect(graph, stat, skill);
-                previous = skill;
-            }
+            connectCategoryRoute(graph, playerData, category);
         }
 
-        connectCategoryNodes(graph, SkillCategory.ATTACK, SkillCategory.SUPPORT_MAGIC);
-        connectCategoryNodes(graph, SkillCategory.ATTACK, SkillCategory.DEFENSE);
-        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.DEFENSE, 3);
-        connectMatchingIndex(graph, playerData, SkillCategory.ATTACK, SkillCategory.SUPPORT_MAGIC, 5);
-        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSE, SkillCategory.OFFENSIVE_MAGIC, 4);
-        connectMatchingIndex(graph, playerData, SkillCategory.OFFENSIVE_MAGIC, SkillCategory.DEFENSIVE_MAGIC, 6);
-        connectMatchingIndex(graph, playerData, SkillCategory.DEFENSIVE_MAGIC, SkillCategory.SUPPORT_MAGIC, 4);
+        connectBridge(graph, playerData, SkillCategory.ATTACK, 4, SkillCategory.OFFENSIVE_MAGIC);
+        connectBridge(graph, playerData, SkillCategory.DEFENSE, 3, SkillCategory.DEFENSIVE_MAGIC);
+        connectBridge(graph, playerData, SkillCategory.SUPPORT_MAGIC, 5, SkillCategory.DEFENSIVE_MAGIC);
+        connectBridge(graph, playerData, SkillCategory.OFFENSIVE_MAGIC, 6, SkillCategory.DEFENSIVE_MAGIC);
         return graph;
     }
 
@@ -357,17 +346,24 @@ public class SkillTreeProgression {
         }
     }
 
-    private void connectMatchingIndex(Map<String, List<String>> graph, PlayerData playerData,
-                                      SkillCategory first, SkillCategory second, int index) {
-        List<Skill> firstSkills = playerData.getSkillTree().getSkillsByCategory(first);
-        List<Skill> secondSkills = playerData.getSkillTree().getSkillsByCategory(second);
-        if (index < firstSkills.size() && index < secondSkills.size()) {
-            connect(graph, skillNodeId(firstSkills.get(index)), skillNodeId(secondSkills.get(index)));
+    private void connectCategoryRoute(Map<String, List<String>> graph, PlayerData playerData, SkillCategory category) {
+        List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(category);
+        String previous = categoryNodeId(category);
+        for (int i = 0; i < skills.size(); i++) {
+            String stat = statNodeId(category, i);
+            String skill = skillNodeId(skills.get(i));
+            connect(graph, previous, stat);
+            connect(graph, stat, skill);
+            previous = skill;
         }
     }
 
-    private void connectCategoryNodes(Map<String, List<String>> graph, SkillCategory first, SkillCategory second) {
-        connect(graph, categoryNodeId(first), categoryNodeId(second));
+    private void connectBridge(Map<String, List<String>> graph, PlayerData playerData,
+                               SkillCategory fromCategory, int fromSkillIndex, SkillCategory toCategory) {
+        List<Skill> skills = playerData.getSkillTree().getSkillsByCategory(fromCategory);
+        if (fromSkillIndex < skills.size()) {
+            connect(graph, skillNodeId(skills.get(fromSkillIndex)), categoryNodeId(toCategory));
+        }
     }
 
     private void connect(Map<String, List<String>> graph, String first, String second) {
@@ -375,60 +371,69 @@ public class SkillTreeProgression {
         graph.computeIfAbsent(second, key -> new ArrayList<>()).add(first);
     }
 
-    private List<Point> routeFor(SkillCategory category) {
-        int[][] route;
+    private Point roomOrigin(SkillCategory category) {
         switch (category) {
             case ATTACK:
-                route = new int[][]{
-                    {-88, -70}, {-154, -70}, {-210, -118}, {-196, -188}, {-124, -220},
-                    {-52, -188}, {-38, -118}, {-92, -70}, {-156, -12}, {-236, 4},
-                    {-304, -42}, {-318, -126}, {-266, -198}, {-184, -248}, {-86, -248},
-                    {-8, -198}, {18, -106}, {-18, -26}, {-94, 22}, {-178, 26},
-                    {-254, -16}
-                };
-                break;
+                return new Point(-3, -6);
             case DEFENSE:
-                route = new int[][]{
-                    {92, -58}, {156, -58}, {212, -104}, {290, -92}, {336, -28},
-                    {320, 54}, {252, 98}, {174, 82}, {130, 16}, {164, -58},
-                    {242, -152}, {344, -156}, {426, -94}, {454, 4}, {420, 98},
-                    {340, 158}, {238, 174}, {148, 136}, {84, 70}
-                };
-                break;
+                return new Point(2, -5);
             case OFFENSIVE_MAGIC:
-                route = new int[][]{
-                    {92, 92}, {160, 132}, {240, 116}, {302, 166}, {302, 252},
-                    {236, 314}, {144, 300}, {86, 226}, {104, 140}, {190, 70},
-                    {296, 48}, {390, 100}, {424, 198}, {386, 296}, {292, 372},
-                    {168, 394}, {58, 348}, {10, 252}, {30, 156}, {96, 92},
-                    {196, 20}
-                };
-                break;
+                return new Point(1, 1);
             case DEFENSIVE_MAGIC:
-                route = new int[][]{
-                    {-86, 112}, {-154, 146}, {-230, 128}, {-292, 178}, {-300, 264},
-                    {-244, 334}, {-148, 340}, {-74, 284}, {-68, 196}, {-136, 118},
-                    {-234, 64}, {-342, 82}, {-410, 162}, {-412, 266}, {-342, 354},
-                    {-230, 414}, {-104, 398}, {-18, 318}
-                };
-                break;
+                return new Point(-4, 1);
             case SUPPORT_MAGIC:
-                route = new int[][]{
-                    {-92, 8}, {-168, 58}, {-258, 46}, {-326, -20}, {-334, -118},
-                    {-274, -202}, {-174, -232}, {-78, -198}, {-38, -108}, {-92, -24},
-                    {-190, 10}, {-298, -8}, {-386, -82}, {-408, -190}, {-354, -294},
-                    {-250, -360}, {-126, -354}, {-34, -282}
-                };
-                break;
+                return new Point(-5, -2);
             default:
-                route = new int[][]{{0, 0}};
-                break;
+                return new Point(0, 0);
         }
-        List<Point> points = new ArrayList<>();
-        for (int[] coordinate : route) {
-            points.add(new Point(coordinate[0], coordinate[1]));
+    }
+
+    private Point toPoint(Point roomOrigin, GridCell cell) {
+        return new Point((roomOrigin.x + cell.column) * GRID_CELL_SIZE,
+                (roomOrigin.y + cell.row) * GRID_CELL_SIZE);
+    }
+
+    private List<GridCell> generatedRoomRoute(SkillCategory category) {
+        switch (category) {
+            case ATTACK:
+                return snakeRoute(true, true);
+            case DEFENSE:
+                return snakeRoute(true, false);
+            case OFFENSIVE_MAGIC:
+                return snakeRoute(false, false);
+            case DEFENSIVE_MAGIC:
+                return snakeRoute(false, true);
+            case SUPPORT_MAGIC:
+                return verticalSnakeRoute(false, true);
+            default:
+                return snakeRoute(false, false);
         }
-        return points;
+    }
+
+    private List<GridCell> snakeRoute(boolean startAtBottom, boolean startAtRight) {
+        List<GridCell> route = new ArrayList<>();
+        for (int rowStep = 0; rowStep < ROOM_SIZE; rowStep++) {
+            int row = startAtBottom ? ROOM_SIZE - 1 - rowStep : rowStep;
+            boolean reverse = (rowStep % 2 == 0) == startAtRight;
+            for (int columnStep = 0; columnStep < ROOM_SIZE; columnStep++) {
+                int column = reverse ? ROOM_SIZE - 1 - columnStep : columnStep;
+                route.add(new GridCell(row, column));
+            }
+        }
+        return route;
+    }
+
+    private List<GridCell> verticalSnakeRoute(boolean startAtBottom, boolean startAtRight) {
+        List<GridCell> route = new ArrayList<>();
+        for (int columnStep = 0; columnStep < ROOM_SIZE; columnStep++) {
+            int column = startAtRight ? ROOM_SIZE - 1 - columnStep : columnStep;
+            boolean reverse = (columnStep % 2 == 0) == startAtBottom;
+            for (int rowStep = 0; rowStep < ROOM_SIZE; rowStep++) {
+                int row = reverse ? ROOM_SIZE - 1 - rowStep : rowStep;
+                route.add(new GridCell(row, column));
+            }
+        }
+        return route;
     }
 
     private static class NodeRef {
@@ -438,6 +443,16 @@ public class SkillTreeProgression {
         private NodeRef(SkillCategory category, int index) {
             this.category = category;
             this.index = index;
+        }
+    }
+
+    private static class GridCell {
+        private final int row;
+        private final int column;
+
+        private GridCell(int row, int column) {
+            this.row = row;
+            this.column = column;
         }
     }
 }
